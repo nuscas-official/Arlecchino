@@ -67,24 +67,21 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
   const seconds = totalSeconds % 60;
   const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  const isWarning5m = remainingMs <= 5 * 60 * 1000 && remainingMs > 1 * 60 * 1000;
+  // Quizzes run ~7 minutes total, so a "5 minutes remaining" banner would be
+  // showing for most of the attempt — not a meaningful warning. Only the
+  // final-minute alert is worth interrupting the layout for.
   const isWarning1m = remainingMs <= 1 * 60 * 1000;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
       <div
-        className={`timer-badge ${isWarning1m ? 'warning-1m' : isWarning5m ? 'warning-5m' : ''}`}
+        className={`timer-badge ${isWarning1m ? 'warning-1m' : ''}`}
         aria-label={`Time remaining: ${formattedTime}`}
       >
         {isWarning1m ? <AlertTriangle size={18} /> : <Clock size={18} />}
         <span>{formattedTime}</span>
       </div>
 
-      {isWarning5m && (
-        <span className="eyebrow" style={{ color: 'var(--gold-light)' }}>
-          5 minutes remaining
-        </span>
-      )}
       {isWarning1m && (
         <span className="eyebrow" style={{ color: '#ff8a94' }}>
           1 minute — auto-submitting soon

@@ -33,21 +33,21 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             ARLECCHINO
           </h1>
           <p className="eyebrow" style={{ color: 'var(--gold-pale)', marginTop: '0.5rem' }}>
-            The King of Riddles
+            NUSCAS Welcome Tea 2026
           </p>
         </div>
 
-        <span className="chip-crimson">NUSCAS Presents</span>
+        <span className="chip-crimson">NUSCAS EXCO Presents</span>
 
         <p style={{ fontSize: '1rem', color: 'var(--ink-mid)', lineHeight: '1.65', margin: '1rem 0 1.75rem' }}>
-          Welcome, weary traveler of Krat. Answer 50 riddles of steel, Ergo, and covenant law
-          before the red telephone booth silences.
+          Welcome, weary traveler. Answer as many of the 50 riddles related to anime, comics, and games
+          we prepared to get your hands on the treasure.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
             <label htmlFor="displayNameInput" className="field-label">
-              Your Stalker / Puppet Name
+              Your Name
             </label>
             <div className="field-wrap">
               <KeyRound size={18} className="field-icon" />
@@ -57,7 +57,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
                 type="text"
                 required
                 maxLength={40}
-                placeholder="e.g. Pinocchio, Geppetto's Son"
+                placeholder="e.g. Anitan, Sakurajima Mai"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
@@ -88,7 +88,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
 
         <hr className="rule-gold" style={{ margin: '1.5rem 0 1rem' }} />
         <p className="eyebrow" style={{ textAlign: 'center' }}>
-          7 Minute Limit &nbsp;·&nbsp; Live Leaderboard
+          7 Minute Limit &nbsp;·&nbsp; NUSCAS Welcome Tea
         </p>
       </div>
     </div>

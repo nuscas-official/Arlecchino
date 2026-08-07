@@ -9,6 +9,8 @@ import { Leaderboard } from './components/Leaderboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { API_BASE_URL } from './config';
 import { prefetchBatch, prefetchUpcomingQuestions } from './services/imagePrefetcher';
+import { shuffleQuestionsForParticipant } from './services/questionShuffler';
+import { fetchQuizStatus, pollWithJitter, QuizStatus } from './services/quizStatus';
 import {
   saveAnswersToDisk,
   loadAnswersFromDisk,
@@ -63,27 +65,40 @@ export function App() {
   }, []);
 
   /**
-   * Fetch Quiz Questions (handles randomized order & status check)
+   * Fetch the canonical question set and apply this participant's order.
+   *
+   * The set is identical for everyone and edge-cached, so all but the first
+   * request in the room is served without touching the database. `status` is
+   * passed in when the caller already has it (the waiting room polls it), which
+   * avoids the redundant fetch — the old flow polled the full quiz payload,
+   * threw all of it away, then immediately fetched the same payload again.
    */
-  const loadQuestions = useCallback(async (token: string, pId: string) => {
-    const qRes = await fetch(`${API_BASE_URL}/api/quiz/${QUIZ_ID}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  const loadQuestions = useCallback(async (pId: string, status?: QuizStatus | null) => {
+    const s = status ?? (await fetchQuizStatus(QUIZ_ID));
 
+    if (!s || s.quizStatus === 'missing') {
+      throw new Error('Quiz is not available. The host may not have seeded it yet.');
+    }
+
+    if (s.quizStatus === 'locked') {
+      setView('waiting');
+      return false;
+    }
+
+    const qRes = await fetch(
+      `${API_BASE_URL}/api/quiz/${QUIZ_ID}/questions?v=${encodeURIComponent(s.questionsVersion || '0')}`
+    );
     if (!qRes.ok) {
       throw new Error('Failed to fetch quiz questions.');
     }
 
     const qData = await qRes.json();
+    const canonical: QuestionPublic[] = qData.questions || [];
+    const qList = shuffleQuestionsForParticipant(canonical, pId);
 
-    if (qData.quizStatus === 'locked') {
-      setView('waiting');
-      return false;
-    }
-
-    const qList: QuestionPublic[] = qData.questions || [];
     setQuestions(qList);
-    setDeadlineIso(qData.quiz?.deadlineIso || new Date(Date.now() + 420000).toISOString());
+    if (s.durationMs) setDurationMs(s.durationMs);
+    setDeadlineIso(s.deadlineIso || new Date(Date.now() + (s.durationMs || 420000)).toISOString());
 
     // Pre-warm initial 8 images
     const initialImages = qList
@@ -128,7 +143,7 @@ export function App() {
         return;
       }
 
-      await loadQuestions(data.sessionToken, data.participantId);
+      await loadQuestions(data.participantId);
     },
     [loadQuestions, rememberSession]
   );
@@ -223,30 +238,24 @@ export function App() {
   }, [executeSubmission]);
 
   // Poll for a host force-end while the quiz is being taken. executeSubmission
-  // is stable now, so this interval survives instead of being rebuilt on every
+  // is stable now, so this poll survives instead of being rebuilt on every
   // answer click (which could drop the force-end signal entirely).
+  //
+  // The deadline auto-submit does NOT depend on this — CountdownClock fires it
+  // locally off deadlineIso, with no network involved. This exists solely for
+  // the host ending the quiz early, which the client cannot predict.
   useEffect(() => {
     if (view !== 'quiz' || !sessionToken) return;
 
     const checkQuizStatusOnServer = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/quiz/${QUIZ_ID}`, {
-          headers: { Authorization: `Bearer ${sessionToken}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.quizStatus === 'finished') {
-            console.log('[Quiz] Session has ended. Auto-submitting answers.');
-            executeSubmission(true);
-          }
-        }
-      } catch (err) {
-        console.error('Quiz status polling error:', err);
+      const status = await fetchQuizStatus(QUIZ_ID);
+      if (status?.quizStatus === 'finished') {
+        console.log('[Quiz] Session has ended. Auto-submitting answers.');
+        executeSubmission(true);
       }
     };
 
-    const interval = setInterval(checkQuizStatusOnServer, 3000);
-    return () => clearInterval(interval);
+    return pollWithJitter(checkQuizStatusOnServer);
   }, [view, sessionToken, executeSubmission]);
 
   const handleReturnToEntrance = () => {
@@ -285,8 +294,7 @@ export function App() {
         <WaitingRoom
           displayName={displayName}
           quizId={QUIZ_ID}
-          sessionToken={sessionToken}
-          onQuizUnlocked={() => loadQuestions(sessionToken, participantId)}
+          onQuizUnlocked={(status) => loadQuestions(participantId, status)}
         />
       )}
 

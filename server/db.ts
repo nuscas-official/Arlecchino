@@ -82,20 +82,12 @@ export function isPlaceholderSubmission(sub?: Submission): boolean {
   return Boolean(sub && sub.auto_submitted && sub.answered_count === 0);
 }
 
-// Pseudo-random seeded generator for randomized question order
-function seededRandom(seed: number) {
-  const x = Math.sin(seed++) * 10000;
-  return x - Math.floor(x);
-}
-
-function stringToSeed(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
+// Question order is randomized per participant, but that now happens in the
+// browser (src/services/questionShuffler.ts). Shuffling here made every
+// response participant-specific, which is what made it impossible to cache the
+// question set at the edge. The order was never a secret — the client receives
+// all questions in one payload either way — and `correct_key` is still never
+// sent, so grading integrity is unaffected.
 
 // Helper to generate UUID & random base64url tokens across WebCrypto & Node
 function generateUUID(): string {
@@ -123,22 +115,35 @@ function getNeonSql(envDatabaseUrl?: string) {
   return neon(dbUrl);
 }
 
-let neonTablesCreated = false;
-async function ensureNeonTables(sql: any) {
-  if (neonTablesCreated) return;
-  try {
-    await sql`CREATE TABLE IF NOT EXISTS quiz (id TEXT PRIMARY KEY, title TEXT NOT NULL, duration_ms INTEGER NOT NULL, grace_ms INTEGER NOT NULL DEFAULT 60000, status TEXT NOT NULL DEFAULT 'locked', opens_at TEXT, closes_at TEXT);`;
-    try {
-      await sql`ALTER TABLE quiz ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'locked';`;
-    } catch (e) {}
-    await sql`CREATE TABLE IF NOT EXISTS question (id TEXT PRIMARY KEY, quiz_id TEXT NOT NULL REFERENCES quiz(id), position INTEGER NOT NULL, prompt TEXT NOT NULL, image_url TEXT, options JSONB NOT NULL, correct_key TEXT NOT NULL, points INTEGER NOT NULL DEFAULT 1, UNIQUE (quiz_id, position));`;
-    await sql`CREATE TABLE IF NOT EXISTS participant (id TEXT PRIMARY KEY, quiz_id TEXT NOT NULL REFERENCES quiz(id), display_name TEXT NOT NULL, session_token TEXT NOT NULL UNIQUE, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
-    await sql`CREATE TABLE IF NOT EXISTS submission (participant_id TEXT PRIMARY KEY REFERENCES participant(id), answers JSONB NOT NULL, score INTEGER NOT NULL, correct_count INTEGER NOT NULL, answered_count INTEGER NOT NULL, elapsed_ms INTEGER NOT NULL, auto_submitted BOOLEAN NOT NULL DEFAULT false, was_late BOOLEAN NOT NULL DEFAULT false, submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_submission_leaderboard ON submission (score DESC, elapsed_ms ASC, submitted_at ASC);`;
-    neonTablesCreated = true;
-  } catch (err) {
-    console.error('[ensureNeonTables ERROR]', err);
-  }
+/**
+ * Schema migration. Deliberately NOT on the request path.
+ *
+ * This used to run from getQuiz behind a module-level `neonTablesCreated` flag,
+ * but module state in a Worker is per-ISOLATE, not per-deployment: the flag
+ * means "this isolate has run the DDL", never "the database has the tables".
+ * A 200-person join burst spins up isolates, so each one re-ran the block —
+ * and `ALTER TABLE ... ADD COLUMN` takes an ACCESS EXCLUSIVE lock on `quiz`
+ * even when the column already exists, i.e. the strongest lock Postgres has,
+ * on the hottest table, at the exact moment of peak read traffic.
+ *
+ * Errors now propagate instead of being swallowed. The old catch left the flag
+ * false, so one transient failure meant that isolate re-ran all six statements
+ * on every subsequent request, forever, while only logging.
+ *
+ * Called once from seedArlecchinoQuiz (i.e. from POST /api/admin/seed).
+ */
+export async function ensureNeonTables(sql: any) {
+  await sql`CREATE TABLE IF NOT EXISTS quiz (id TEXT PRIMARY KEY, title TEXT NOT NULL, duration_ms INTEGER NOT NULL, grace_ms INTEGER NOT NULL DEFAULT 60000, status TEXT NOT NULL DEFAULT 'locked', opens_at TEXT, closes_at TEXT);`;
+  await sql`ALTER TABLE quiz ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'locked';`;
+  await sql`CREATE TABLE IF NOT EXISTS question (id TEXT PRIMARY KEY, quiz_id TEXT NOT NULL REFERENCES quiz(id), position INTEGER NOT NULL, prompt TEXT NOT NULL, image_url TEXT, options JSONB NOT NULL, correct_key TEXT NOT NULL, points INTEGER NOT NULL DEFAULT 1, UNIQUE (quiz_id, position));`;
+  await sql`CREATE TABLE IF NOT EXISTS participant (id TEXT PRIMARY KEY, quiz_id TEXT NOT NULL REFERENCES quiz(id), display_name TEXT NOT NULL, session_token TEXT NOT NULL UNIQUE, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
+  await sql`CREATE TABLE IF NOT EXISTS submission (participant_id TEXT PRIMARY KEY REFERENCES participant(id), answers JSONB NOT NULL, score INTEGER NOT NULL, correct_count INTEGER NOT NULL, answered_count INTEGER NOT NULL, elapsed_ms INTEGER NOT NULL, auto_submitted BOOLEAN NOT NULL DEFAULT false, was_late BOOLEAN NOT NULL DEFAULT false, submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_submission_leaderboard ON submission (score DESC, elapsed_ms ASC, submitted_at ASC);`;
+}
+
+/** Exposed so the seed path can reach the same connection helper. */
+export function neonSqlFor(envDatabaseUrl?: string) {
+  return getNeonSql(envDatabaseUrl);
 }
 
 /**
@@ -212,17 +217,12 @@ export const dbService = {
   async getQuiz(quizId: string, envDbUrl?: string): Promise<Quiz | undefined> {
     const sql = getNeonSql(envDbUrl);
     if (sql) {
-      await ensureNeonTables(sql);
-      let rows: any = await sql`SELECT * FROM quiz WHERE id = ${quizId}`;
-      if (!rows || rows.length === 0) {
-        try {
-          const { seedArlecchinoQuiz } = await import('./seed.js');
-          await seedArlecchinoQuiz(envDbUrl);
-          rows = await sql`SELECT * FROM quiz WHERE id = ${quizId}`;
-        } catch (e) {
-          console.error('[getQuiz Auto-Seed ERROR]', e);
-        }
-      }
+      // No lazy migration and no auto-seed here. Both used to run inline: on an
+      // empty database 200 concurrent joins each started their own full seed
+      // (51 sequential round trips apiece) because none had finished by the
+      // time the others checked. Seeding is now an explicit, one-time admin
+      // action — POST /api/admin/seed — so this path stays a single SELECT.
+      const rows: any = await sql`SELECT * FROM quiz WHERE id = ${quizId}`;
       if (!rows || rows.length === 0) return undefined;
       return { ...rows[0], status: rows[0].status || 'locked' };
     }
@@ -408,19 +408,25 @@ export const dbService = {
     throw new Error('[dbService.upsertQuestion] Database connection unavailable.');
   },
 
-  async getPublicQuestionsShuffled(quizId: string, participantId: string, envDbUrl?: string): Promise<QuestionPublic[]> {
+  /**
+   * The canonical question set — identical for every participant, and with
+   * `correct_key` never selected. Because the response no longer varies by
+   * participant it can be cached at the edge and served to the whole room from
+   * one origin fetch. The browser applies the per-participant order.
+   */
+  async getPublicQuestions(quizId: string, envDbUrl?: string): Promise<QuestionPublic[]> {
     let rawQuestions: any[] = [];
     const sql = getNeonSql(envDbUrl);
     if (sql) {
-      rawQuestions = await sql`SELECT id, quiz_id as "quizId", position, prompt, image_url as "imageUrl", options, points FROM question WHERE quiz_id = ${quizId}`;
+      rawQuestions = await sql`SELECT id, quiz_id as "quizId", position, prompt, image_url as "imageUrl", options, points FROM question WHERE quiz_id = ${quizId} ORDER BY position ASC`;
     } else {
       const db = getLocalSqlite();
       if (db) {
-        rawQuestions = db.prepare('SELECT id, quiz_id as quizId, position, prompt, image_url as imageUrl, options, points FROM question WHERE quiz_id = ?').all(quizId) as any[];
+        rawQuestions = db.prepare('SELECT id, quiz_id as quizId, position, prompt, image_url as imageUrl, options, points FROM question WHERE quiz_id = ? ORDER BY position ASC').all(quizId) as any[];
       }
     }
 
-    const publicQuestions: QuestionPublic[] = rawQuestions.map((r) => ({
+    return rawQuestions.map((r) => ({
       id: r.id,
       quizId: r.quizId,
       position: r.position,
@@ -429,15 +435,6 @@ export const dbService = {
       options: typeof r.options === 'string' ? JSON.parse(r.options) : r.options,
       points: r.points,
     }));
-
-    let seed = stringToSeed(participantId);
-    const shuffled = [...publicQuestions];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom(seed++) * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    return shuffled.map((q, idx) => ({ ...q, position: idx + 1 }));
   },
 
   async getInternalQuestions(quizId: string, envDbUrl?: string): Promise<Question[]> {

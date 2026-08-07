@@ -1,8 +1,16 @@
-import { dbService, Quiz, Question } from './db.js';
+import { dbService, ensureNeonTables, neonSqlFor, Quiz, Question } from './db.js';
 
 export async function seedArlecchinoQuiz(envDbUrl?: string) {
   const quizId = 'arlecchino-riddles-1';
-  
+
+  // The only place schema migration runs. It used to fire lazily from getQuiz
+  // on every cold Worker isolate; see ensureNeonTables for why that was bad
+  // under a join burst.
+  const sql = neonSqlFor(envDbUrl);
+  if (sql) {
+    await ensureNeonTables(sql);
+  }
+
   const quiz: Quiz = {
     id: quizId,
     title: 'Arlecchino: King of Riddles Trial',

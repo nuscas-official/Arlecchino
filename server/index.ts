@@ -15,6 +15,80 @@ app.use('*', cors({
 let leaderboardCache: { quizId: string; timestamp: number; data: any[] } | null = null;
 const CACHE_TTL_MS = 3000;
 
+/**
+ * Cloudflare does not cache Worker responses on workers.dev routes on its own,
+ * so the Cache API has to be driven explicitly. Undefined under plain Node,
+ * where every call simply falls through to the origin.
+ */
+const edgeCache: any = (globalThis as any).caches?.default;
+
+/**
+ * Serve a JSON payload through the edge cache, keyed on the full request URL.
+ *
+ * This is what makes participant count stop mattering: 200 clients polling the
+ * status endpoint collapse into roughly one origin hit every `ttlSeconds`, and
+ * the question set is fetched from the database once for the entire room.
+ */
+async function cachedJson(c: any, ttlSeconds: number, build: () => Promise<any>) {
+  const key = new Request(c.req.url, { method: 'GET' });
+
+  if (edgeCache) {
+    const hit = await edgeCache.match(key);
+    if (hit) {
+      // Responses handed back by the Cache API have immutable headers, and the
+      // CORS middleware writes to them after the handler returns. Copying into
+      // a fresh Response keeps them writable.
+      const headers = new Headers(hit.headers);
+      headers.set('X-Cache', 'HIT');
+      return new Response(hit.body, { status: hit.status, headers });
+    }
+  }
+
+  const payload = await build();
+  const body = JSON.stringify(payload);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Cache-Control': `public, max-age=${ttlSeconds}`,
+    // So the caching can actually be confirmed against the deployed Worker:
+    // `curl -sI .../status | grep -i x-cache` should show MISS then HIT.
+    'X-Cache': edgeCache ? 'MISS' : 'BYPASS',
+  };
+
+  if (edgeCache) {
+    const storable = new Response(body, { headers });
+    const waitUntil = c.executionCtx?.waitUntil?.bind(c.executionCtx);
+    const put = edgeCache.put(key, storable);
+    if (waitUntil) waitUntil(put);
+    else await put;
+  }
+
+  return new Response(body, { headers: new Headers(headers) });
+}
+
+/**
+ * Cache-busting token for the question set. Changes when the host unlocks (and
+ * on a reset-then-unlock), which guarantees nobody is served a question payload
+ * cached from a previous run.
+ */
+function questionsVersion(quiz: { opens_at?: string | null }): string {
+  const t = quiz.opens_at ? Date.parse(quiz.opens_at) : NaN;
+  return Number.isNaN(t) ? '0' : String(t);
+}
+
+/**
+ * The 50 questions are immutable for the duration of an event, but /api/submit
+ * re-read all of them from the database for every single participant. Memoized
+ * per isolate, so the submission burst costs one fetch per isolate rather than
+ * one per submission.
+ */
+let internalQuestionsCache: { quizId: string; data: any[] } | null = null;
+async function getInternalQuestionsCached(quizId: string, envDbUrl?: string) {
+  if (internalQuestionsCache?.quizId === quizId) return internalQuestionsCache.data;
+  const data = await dbService.getInternalQuestions(quizId, envDbUrl);
+  internalQuestionsCache = { quizId, data };
+  return data;
+}
+
 async function getAuthenticatedParticipant(c: any) {
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -84,42 +158,82 @@ app.post('/api/session/start', async (c) => {
   }
 });
 
-app.get('/api/quiz/:quizId', async (c) => {
-  const participant = await getAuthenticatedParticipant(c);
-  if (!participant) {
-    return c.json({ error: 'Unauthorized session' }, 401);
-  }
-
+/**
+ * Status poll. Both the waiting room and the in-quiz force-end watcher hit this
+ * every few seconds, so it is deliberately tiny and carries nothing that varies
+ * per participant — that is what lets it sit behind the edge cache.
+ *
+ * It replaces polling /api/quiz/:quizId, which returned the entire 50-question
+ * payload (~30 KB, 3 database round trips) to answer a single-field question.
+ * Both callers read exactly one property and discarded the rest.
+ */
+app.get('/api/quiz/:quizId/status', async (c) => {
   const quizId = c.req.param('quizId');
-  let quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
-  if (!quiz) {
-    return c.json({ error: 'Quiz not found' }, 404);
-  }
-  quiz = await dbService.maybeAutoFinish(quiz, c.env?.DATABASE_URL);
 
-  if (quiz.status === 'locked') {
-    return c.json({
-      quizStatus: 'locked',
-      message: 'The King of Riddles trial is currently locked by the host.',
-    });
-  }
+  return cachedJson(c, 2, async () => {
+    let quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
+    if (!quiz) {
+      return { quizStatus: 'missing', error: 'Quiz not found. Has it been seeded?' };
+    }
 
-  const startedAtTime = new Date(quiz.opens_at || participant.started_at).getTime();
-  const deadlineIso = new Date(startedAtTime + quiz.duration_ms).toISOString();
+    // Still the mechanism that closes an expired quiz, since nothing else is
+    // scheduled. Behind a 2s cache it runs ~30x/minute, which is ample.
+    quiz = await dbService.maybeAutoFinish(quiz, c.env?.DATABASE_URL);
 
-  const questions = await dbService.getPublicQuestionsShuffled(quizId, participant.id, c.env?.DATABASE_URL);
+    const deadlineIso = quiz.opens_at
+      ? new Date(new Date(quiz.opens_at).getTime() + quiz.duration_ms).toISOString()
+      : null;
 
-  return c.json({
-    quizStatus: quiz.status,
-    quiz: {
-      id: quiz.id,
+    return {
+      quizStatus: quiz.status,
+      quizId: quiz.id,
       title: quiz.title,
       durationMs: quiz.duration_ms,
       graceMs: quiz.grace_ms,
-      opensAt: quiz.opens_at,
+      opensAt: quiz.opens_at || null,
       deadlineIso,
-    },
-    questions,
+      questionsVersion: questionsVersion(quiz),
+    };
+  });
+});
+
+/**
+ * The question set: canonical order, no answer keys, identical for everyone.
+ *
+ * Unauthenticated on purpose — a per-request bearer token would land in the
+ * cache key and defeat the sharing entirely. Clients only request this once
+ * they have seen `active` from the status endpoint, and the `v` parameter
+ * (questionsVersion) makes unlock mint a fresh cache key, so a payload cached
+ * before unlock can never be served after it.
+ */
+app.get('/api/quiz/:quizId/questions', async (c) => {
+  const quizId = c.req.param('quizId');
+
+  return cachedJson(c, 300, async () => {
+    const quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
+    if (!quiz) {
+      return { error: 'Quiz not found', questions: [] };
+    }
+
+    // Nothing is served before the host unlocks, so dropping the bearer token
+    // does not hand the question set out early. Safe to cache alongside the
+    // gate because unlock changes questionsVersion, and therefore the cache
+    // key — a payload cached while locked can never be served after unlock.
+    if (quiz.status === 'locked') {
+      return { error: 'Quiz is locked', questions: [] };
+    }
+
+    const questions = await dbService.getPublicQuestions(quizId, c.env?.DATABASE_URL);
+
+    return {
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        durationMs: quiz.duration_ms,
+        graceMs: quiz.grace_ms,
+      },
+      questions,
+    };
   });
 });
 
@@ -155,7 +269,7 @@ app.post('/api/submit', async (c) => {
     // force-ending after the timer expired graded everyone 0.)
     const wasLate = elapsedMs > quiz.duration_ms;
 
-    const internalQuestions = await dbService.getInternalQuestions(participant.quiz_id, c.env?.DATABASE_URL);
+    const internalQuestions = await getInternalQuestionsCached(participant.quiz_id, c.env?.DATABASE_URL);
     let score = 0;
     let correctCount = 0;
     let answeredCount = 0;
@@ -222,9 +336,11 @@ app.post('/api/admin/seed', async (c) => {
   }
 
   try {
+    // Also runs the schema migration; this is the only path that does.
     await seedArlecchinoQuiz(c.env?.DATABASE_URL);
     leaderboardCache = null;
-    return c.json({ status: 'ok', message: 'Database seeded successfully.' });
+    internalQuestionsCache = null;
+    return c.json({ status: 'ok', message: 'Database migrated and seeded successfully.' });
   } catch (err: any) {
     console.error('Error seeding database:', err);
     return c.json({ error: 'Failed to seed database', details: String(err?.message || err) }, 500);
@@ -265,6 +381,7 @@ app.post('/api/admin/quiz/reset', async (c) => {
 
     await dbService.resetQuizData(quizId, c.env?.DATABASE_URL);
     leaderboardCache = null;
+    internalQuestionsCache = null;
 
     return c.json({ status: 'ok', message: 'Quiz submissions and participant sessions reset to 0.' });
   } catch (err: any) {

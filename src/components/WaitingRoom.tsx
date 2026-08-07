@@ -1,44 +1,39 @@
 import React, { useEffect } from 'react';
 import { Lock, Loader2 } from 'lucide-react';
-import { API_BASE_URL } from '../config';
+import { fetchQuizStatus, pollWithJitter, QuizStatus } from '../services/quizStatus';
 
 interface WaitingRoomProps {
   displayName: string;
-  onQuizUnlocked: () => void;
+  onQuizUnlocked: (status: QuizStatus) => void;
   quizId: string;
-  sessionToken: string;
 }
 
+/**
+ * Unlock is the most synchronized moment of the whole event — by definition
+ * everyone leaves this screen at once — so it is the one worth keeping cheap.
+ *
+ * This used to poll /api/quiz/:id, which meant that the instant the host
+ * unlocked, all 200 waiting clients were handed the full ~30 KB question
+ * payload, discarded every byte of it, and then immediately fetched the very
+ * same payload again via loadQuestions. Polling the status endpoint and passing
+ * the result up removes both halves of that.
+ */
 export const WaitingRoom: React.FC<WaitingRoomProps> = ({
   displayName,
   onQuizUnlocked,
   quizId,
-  sessionToken,
 }) => {
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
     const checkQuizStatus = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/quiz/${quizId}`, {
-          headers: { Authorization: `Bearer ${sessionToken}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.quizStatus === 'active') {
-            onQuizUnlocked();
-          }
-        }
-      } catch (err) {
-        console.error('Polling quiz status error:', err);
+      const status = await fetchQuizStatus(quizId);
+      if (status?.quizStatus === 'active' || status?.quizStatus === 'finished') {
+        onQuizUnlocked(status);
       }
     };
 
     checkQuizStatus();
-    interval = setInterval(checkQuizStatus, 3000); // 3s polling until host unlocks
-
-    return () => clearInterval(interval);
-  }, [quizId, sessionToken, onQuizUnlocked]);
+    return pollWithJitter(checkQuizStatus);
+  }, [quizId, onQuizUnlocked]);
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
