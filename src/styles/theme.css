@@ -1,69 +1,84 @@
 /* ==========================================================================
-   Arlecchino: King of Riddles — Theme System
-   Aligned with the NUSCAS design language (nuscas.com) and the
-   NUSCAS Anime Awards ceremony site.
+   Columbina: Ode to the Moon — Theme System
+   Structural language unchanged from the NUSCAS design system (square
+   corners, diagonal corner cuts, mono eyebrows, 「 」 brackets, serif display).
+   Only the palette moves: parchment & candlelight → moonlight & frost.
 
-   Core signatures borrowed from the club sites:
-     - Parchment page, warm ink text, dark umber panels for focus areas
-     - Crimson + brass gold accents, never neon
+   Core signatures:
+     - Frost-white page, midnight-navy text, night-sky panels for focus areas
+     - Azure + ice-silver accents; amethyst as the small warm-side accent
+     - Magenta-rose reserved for urgency only (her hair, the one red note)
      - Square corners (radius 0) with `--cut` diagonal corner clips
      - Manrope body / Cormorant Garamond display / Azeret Mono eyebrows
-     - Mono uppercase letterspaced section labels
-     - 「 」 bracket motif for the active item
+     - Glow instead of gilding: luminous edges where gold leaf used to be
+
+   Class names are untouched, so no markup needs to change. Old token names
+   (--parchment, --crimson, --gold, …) survive as aliases at the bottom of
+   :root for any inline styles or Tailwind arbitrary values still using them.
    ========================================================================== */
 
 :root {
-  /* --- Palette: parchment surfaces (nuscas.com) --- */
-  --parchment: #f7f4eb;
-  --parchment-deep: #f2ead8;
-  --cream: #faf3e0;
-  --surface: #fffdf7;
+  /* --- Palette: frost surfaces --- */
+  --frost: #eef3fc;
+  --frost-deep: #dfe9f9;
+  --snow: #f8fbff;
+  --surface: #fdfeff;
   --surface-raised: #ffffff;
-  --surface-hover: #f1ebd9;
-  --surface-sunken: #ede5d4;
+  --surface-hover: #e9f1fd;
+  --surface-sunken: #dbe6f6;
 
-  /* --- Palette: umber ink --- */
-  --ink: #1a0f0a;
-  --ink-strong: #3c2f2f;
-  --ink-mid: #4a4240;
-  --ink-muted: #8c7f78;
-  --ink-faint: #c5ae97;
+  /* --- Palette: midnight ink --- */
+  --ink: #0b1226;
+  --ink-strong: #22304f;
+  --ink-mid: #3e4f75;
+  --ink-muted: #62739a;
+  --ink-faint: #a7b6d2;
 
-  /* --- Palette: dark panels (nuscas.com dark tokens) --- */
-  --panel: #161414;
-  --panel-raised: #1f1a1a;
-  --panel-border: #2e2a2a;
-  --panel-text: #ece7e7;
-  --panel-text-muted: #a8a29e;
+  /* --- Palette: night-sky panels --- */
+  --panel: #0e1533;
+  --panel-raised: #18204a;
+  --panel-border: #2a3462;
+  --panel-text: #e9eeff;
+  --panel-text-muted: #a5b0d0;
 
-  /* --- Palette: crimson --- */
-  --crimson: #8c0e1a;
-  --crimson-bright: #c42a38;
-  --crimson-deep: #6b1018;
-  --burgundy: #5c1520;
-  --crimson-wash: rgba(140, 14, 26, 0.08);
+  /* --- Palette: azure (primary action, was crimson) --- */
+  --azure: #2a63c8;
+  --azure-bright: #4d8ff0;
+  --azure-deep: #1c47a0;
+  --midnight: #131c46;
+  --azure-wash: rgba(42, 99, 200, 0.09);
 
-  /* --- Palette: brass gold --- */
-  --gold: #c09c6a;
-  --gold-deep: #ab8741;
-  --gold-rich: #c9940a;
-  --gold-light: #f0b429;
-  --gold-pale: #f5e6b0;
-  --gold-wash: rgba(192, 156, 106, 0.12);
+  /* --- Palette: ice silver (structure & emphasis, was brass gold) --- */
+  --ice: #9fc4e8;
+  --ice-deep: #3a6da4;
+  --ice-rich: #5aa9e6;
+  --ice-light: #8fd8ff;
+  --ice-pale: #e2f0ff;
+  --ice-wash: rgba(122, 169, 230, 0.14);
 
-  /* --- Accent (nuscas orange) --- */
-  --accent: #f59e4e;
-  --accent-hover: #e08333;
+  /* --- Palette: amethyst (small accent, her hair's cool half) --- */
+  --iris: #7b5fc4;
+  --iris-bright: #9b7ce0;
+  --iris-wash: rgba(123, 95, 196, 0.12);
+
+  /* --- Palette: rose (urgency only, her hair's warm half) --- */
+  --rose: #b02a6b;
+  --rose-bright: #e0559a;
+  --rose-wash: rgba(176, 42, 107, 0.09);
+
+  /* --- Accent --- */
+  --accent: #8f6fd6;
+  --accent-hover: #7a58c4;
 
   /* --- Semantic --- */
-  --border: #d9c9a8;
-  --border-soft: #e6dfdf;
-  --success: #3f7d4e;
-  --success-wash: rgba(63, 125, 78, 0.1);
-  --warning: #a9750d;
-  --warning-wash: rgba(240, 180, 41, 0.14);
+  --border: #c8daf0;
+  --border-soft: #e3ecf8;
+  --success: #2f7d6e;
+  --success-wash: rgba(47, 125, 110, 0.1);
+  --warning: #5b47a8;
+  --warning-wash: rgba(123, 95, 196, 0.14);
 
-  /* --- Geometry: square by default, like nuscas.com --- */
+  /* --- Geometry: square by default --- */
   --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
@@ -76,15 +91,33 @@
   --font-mono: 'Azeret Mono', ui-monospace, 'SFMono-Regular', monospace;
   --font-display: 'Birthstone', cursive;
 
-  /* --- Elevation (warm shadows, never black) --- */
-  --shadow-sm: 0 1px 2px rgba(90, 40, 20, 0.06);
-  --shadow: 0 4px 20px rgba(90, 40, 20, 0.1);
-  --shadow-lg: 0 16px 60px rgba(90, 40, 20, 0.18);
+  /* --- Elevation (cool shadows, never black) --- */
+  --shadow-sm: 0 1px 2px rgba(20, 40, 90, 0.07);
+  --shadow: 0 4px 20px rgba(20, 40, 90, 0.1);
+  --shadow-lg: 0 16px 60px rgba(20, 40, 90, 0.18);
+  --glow: 0 0 24px rgba(143, 216, 255, 0.45);
 
   /* --- Motion --- */
   --t-fast: 150ms;
   --t-normal: 250ms;
   --ease-out: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* --- Legacy aliases: old names, new colours ---------------------------
+     Keeps any markup that still says var(--crimson) or var(--gold) working. */
+  --parchment: var(--frost);
+  --parchment-deep: var(--frost-deep);
+  --cream: var(--snow);
+  --crimson: var(--azure);
+  --crimson-bright: var(--azure-bright);
+  --crimson-deep: var(--azure-deep);
+  --crimson-wash: var(--azure-wash);
+  --burgundy: var(--midnight);
+  --gold: var(--ice);
+  --gold-deep: var(--ice-deep);
+  --gold-rich: var(--ice-rich);
+  --gold-light: var(--ice-light);
+  --gold-pale: var(--ice-pale);
+  --gold-wash: var(--ice-wash);
 }
 
 * {
@@ -93,13 +126,16 @@
   padding: 0;
 }
 
-/* Backdrop lives on <html> so the warm bloom covers the full viewport
-   regardless of how short the page content is. */
+/* Backdrop lives on <html> so the moonlight covers the full viewport
+   regardless of how short the page content is: a cold moon high on the left,
+   a faint bloom of blue petals rising from the bottom right. */
 html {
-  background-color: var(--parchment);
+  background-color: var(--frost);
   background-image:
-    radial-gradient(circle at 12% 0%, rgba(140, 14, 26, 0.05) 0%, transparent 45%),
-    radial-gradient(circle at 88% 100%, rgba(192, 156, 106, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 14% -4%, rgba(255, 255, 255, 0.9) 0%, transparent 38%),
+    radial-gradient(circle at 12% 0%, rgba(42, 99, 200, 0.07) 0%, transparent 48%),
+    radial-gradient(circle at 88% 100%, rgba(90, 169, 230, 0.14) 0%, transparent 52%),
+    radial-gradient(circle at 68% 88%, rgba(123, 95, 196, 0.07) 0%, transparent 45%);
   background-attachment: fixed;
 }
 
@@ -113,15 +149,15 @@ body {
 }
 
 ::selection {
-  background: var(--gold-pale);
+  background: var(--ice-pale);
   color: var(--ink);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-track { background: var(--parchment-deep); }
+::-webkit-scrollbar-track { background: var(--frost-deep); }
 ::-webkit-scrollbar-thumb { background: var(--ink-faint); }
-::-webkit-scrollbar-thumb:hover { background: var(--gold-deep); }
+::-webkit-scrollbar-thumb:hover { background: var(--ice-deep); }
 
 /* --------------------------------------------------------------------------
    Typography
@@ -140,7 +176,7 @@ h1, h2, h3, .font-serif {
   font-weight: 400;
 }
 
-/* Mono uppercase eyebrow — "OUR STORY" / "SEASONAL PICK" on the club sites */
+/* Mono uppercase eyebrow */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -150,22 +186,24 @@ h1, h2, h3, .font-serif {
   color: var(--ink-muted);
 }
 
-.eyebrow-gold { color: var(--gold-deep); }
-.eyebrow-crimson { color: var(--crimson); }
+.eyebrow-gold { color: var(--ice-deep); }
+.eyebrow-crimson { color: var(--azure); }
+.eyebrow-iris { color: var(--iris); }
 
-/* 「 」 bracket motif used for the active nav item on nuscas.com */
-.bracketed::before { content: '\300C'; color: var(--crimson); margin-right: 0.15em; }
-.bracketed::after  { content: '\300D'; color: var(--crimson); margin-left: 0.15em; }
+/* 「 」 bracket motif for the active item */
+.bracketed::before { content: '\300C'; color: var(--azure); margin-right: 0.15em; }
+.bracketed::after  { content: '\300D'; color: var(--azure); margin-left: 0.15em; }
 
-.text-gold { color: var(--gold-deep); }
-.text-crimson { color: var(--crimson); }
+.text-gold { color: var(--ice-deep); }
+.text-crimson { color: var(--azure); }
+.text-iris { color: var(--iris); }
 .text-muted { color: var(--ink-muted); }
 
-/* Crimson label chip — the red "NUS Comics & Animation Society" badge */
+/* Label chip — the society badge */
 .chip-crimson {
   display: inline-block;
-  background: var(--crimson);
-  color: var(--cream);
+  background: var(--azure);
+  color: var(--snow);
   font-family: var(--font-sans);
   font-weight: 700;
   font-size: 0.8rem;
@@ -186,11 +224,11 @@ h1, h2, h3, .font-serif {
   flex-direction: column;
 }
 
-/* Hairline rule with the gold-to-transparent falloff used across the club sites */
+/* Hairline rule with an ice-to-transparent falloff */
 .rule-gold {
   height: 1px;
   border: 0;
-  background: linear-gradient(90deg, var(--gold) 0%, rgba(192, 156, 106, 0.25) 60%, transparent 100%);
+  background: linear-gradient(90deg, var(--ice-rich) 0%, rgba(159, 196, 232, 0.3) 60%, transparent 100%);
 }
 
 /* --------------------------------------------------------------------------
@@ -207,14 +245,16 @@ h1, h2, h3, .font-serif {
 }
 
 .riddle-card:hover {
-  border-color: var(--gold);
+  border-color: var(--ice);
 }
 
-/* Dark umber panel with a diagonal corner cut — the club site's hero treatment */
+/* Night-sky panel with a diagonal corner cut and moon cover image background */
 .cut-panel {
-  background: var(--panel);
+  background:
+    linear-gradient(rgba(13, 21, 37, 0.45), rgba(13, 21, 37, 0.75)),
+    url('/images/moon-cover.webp') center / cover no-repeat;
   color: var(--panel-text);
-  padding: 2rem;
+  padding: 2.5rem 2rem;
   clip-path: polygon(
     var(--cut) 0,
     100% 0,
@@ -227,11 +267,11 @@ h1, h2, h3, .font-serif {
 
 .cut-panel h1,
 .cut-panel h2,
-.cut-panel h3 { color: var(--cream); }
+.cut-panel h3 { color: var(--snow); }
 
-/* Gold top-edge accent for featured cards */
+/* Luminous top edge for featured cards — the moonlight rim */
 .card-featured {
-  border-color: var(--gold);
+  border-color: var(--ice);
   box-shadow: var(--shadow-lg);
   position: relative;
 }
@@ -241,7 +281,7 @@ h1, h2, h3, .font-serif {
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--gold-rich), var(--gold-light), var(--gold-rich));
+  background: linear-gradient(90deg, var(--azure) 0%, var(--ice-light) 50%, var(--iris-bright) 100%);
 }
 
 /* --------------------------------------------------------------------------
@@ -263,22 +303,22 @@ h1, h2, h3, .font-serif {
               box-shadow var(--t-fast) ease;
 }
 
-/* Primary: crimson, the club's strongest call to action */
+/* Primary: azure, the strongest call to action */
 .btn-gold {
-  background: var(--crimson);
-  color: var(--cream);
+  background: var(--azure);
+  color: var(--snow);
   font-weight: 700;
   letter-spacing: 0.03em;
   padding: 0.85rem 1.75rem;
-  border: 1px solid var(--crimson);
+  border: 1px solid var(--azure);
   box-shadow: var(--shadow-sm);
 }
 
 .btn-gold:hover:not(:disabled) {
-  background: var(--crimson-deep);
-  border-color: var(--gold);
+  background: var(--azure-deep);
+  border-color: var(--ice-light);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(140, 14, 26, 0.25);
+  box-shadow: 0 6px 18px rgba(42, 99, 200, 0.3);
 }
 
 .btn-gold:active:not(:disabled) { transform: translateY(0); }
@@ -291,16 +331,16 @@ h1, h2, h3, .font-serif {
   box-shadow: none;
 }
 
-/* Brass variant for secondary emphasis actions */
+/* Ice variant for secondary emphasis actions */
 .btn-brass {
-  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%);
+  background: linear-gradient(135deg, var(--ice-light) 0%, var(--ice) 100%);
   color: var(--ink);
-  border-color: var(--gold-deep);
+  border-color: var(--ice-deep);
 }
 
 .btn-brass:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 100%);
-  border-color: var(--gold-deep);
+  background: linear-gradient(135deg, #b6e6ff 0%, var(--ice-light) 100%);
+  border-color: var(--ice-deep);
 }
 
 .btn-secondary {
@@ -314,7 +354,7 @@ h1, h2, h3, .font-serif {
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--surface-hover);
-  border-color: var(--gold);
+  border-color: var(--ice);
   color: var(--ink);
 }
 
@@ -328,19 +368,19 @@ h1, h2, h3, .font-serif {
 }
 
 .btn-ghost:hover:not(:disabled) {
-  color: var(--crimson);
+  color: var(--azure);
   border-color: var(--border);
 }
 
 .btn-danger {
-  border-color: var(--crimson-bright);
-  color: var(--crimson-bright);
+  border-color: var(--rose-bright);
+  color: var(--rose);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--crimson-wash);
-  border-color: var(--crimson);
-  color: var(--crimson);
+  background: var(--rose-wash);
+  border-color: var(--rose);
+  color: var(--rose);
 }
 
 /* --------------------------------------------------------------------------
@@ -371,7 +411,7 @@ h1, h2, h3, .font-serif {
 
 .text-input {
   width: 100%;
-  background: var(--parchment);
+  background: var(--frost);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 0.85rem 1rem 0.85rem 2.75rem;
@@ -387,8 +427,8 @@ h1, h2, h3, .font-serif {
 
 .text-input:focus {
   background: var(--surface-raised);
-  border-color: var(--gold-deep);
-  box-shadow: 0 0 0 3px var(--gold-wash);
+  border-color: var(--azure);
+  box-shadow: 0 0 0 3px var(--ice-wash);
 }
 
 /* --------------------------------------------------------------------------
@@ -406,15 +446,12 @@ h1, h2, h3, .font-serif {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Text-only riddles get a paper plate rather than a black slab, so the
+  /* Text-only riddles get a lit frost plate rather than a black slab, so the
      prompt stays the focal point. */
-  background: var(--parchment-deep);
+  background: var(--frost-deep);
   background-image:
-    repeating-linear-gradient(
-      45deg,
-      rgba(192, 156, 106, 0.07) 0 10px,
-      transparent 10px 20px
-    );
+    radial-gradient(circle at 22% 28%, rgba(143, 216, 255, 0.35) 0%, transparent 42%),
+    radial-gradient(circle at 76% 72%, rgba(123, 95, 196, 0.16) 0%, transparent 46%);
 }
 
 /* Only riddles that actually carry artwork get the dark mat */
@@ -462,20 +499,20 @@ h1, h2, h3, .font-serif {
 .option-button:hover {
   background: var(--surface-hover);
   border-color: var(--border);
-  border-left-color: var(--gold);
+  border-left-color: var(--ice);
   transform: translateX(3px);
 }
 
 .option-button.selected {
-  background: var(--gold-wash);
-  border-color: var(--gold);
-  border-left-color: var(--crimson);
+  background: var(--ice-wash);
+  border-color: var(--ice);
+  border-left-color: var(--azure);
   color: var(--ink);
   font-weight: 600;
 }
 
 .option-key-badge {
-  background: var(--parchment-deep);
+  background: var(--frost-deep);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   width: 30px;
@@ -493,9 +530,9 @@ h1, h2, h3, .font-serif {
 }
 
 .option-button.selected .option-key-badge {
-  background: var(--crimson);
-  border-color: var(--crimson);
-  color: var(--cream);
+  background: var(--azure);
+  border-color: var(--azure);
+  color: var(--snow);
 }
 
 /* --------------------------------------------------------------------------
@@ -507,7 +544,7 @@ h1, h2, h3, .font-serif {
   align-items: center;
   gap: 0.55rem;
   background: var(--surface);
-  border: 1px solid var(--gold);
+  border: 1px solid var(--ice);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
@@ -518,42 +555,44 @@ h1, h2, h3, .font-serif {
   box-shadow: var(--shadow-sm);
 }
 
+/* Five minutes left: the clock turns amethyst */
 .timer-badge.warning-5m {
-  border-color: var(--gold-light);
+  border-color: var(--iris-bright);
   background: var(--warning-wash);
   color: var(--warning);
   animation: pulse-warn 2s infinite;
 }
 
+/* One minute left: the single red note in the palette */
 .timer-badge.warning-1m {
-  border-color: var(--crimson);
-  background: var(--crimson-wash);
-  color: var(--crimson);
+  border-color: var(--rose);
+  background: var(--rose-wash);
+  color: var(--rose);
   animation: pulse-crimson 1s infinite;
 }
 
 @keyframes pulse-warn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 180, 41, 0.35); }
-  50%      { box-shadow: 0 0 0 6px rgba(240, 180, 41, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(123, 95, 196, 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(123, 95, 196, 0); }
 }
 
 @keyframes pulse-crimson {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(140, 14, 26, 0.4); }
-  50%      { box-shadow: 0 0 0 7px rgba(140, 14, 26, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(176, 42, 107, 0.4); }
+  50%      { box-shadow: 0 0 0 7px rgba(176, 42, 107, 0); }
 }
 
 /* --------------------------------------------------------------------------
-   Site header band — the crimson ceremony bar from the Awards site
+   Site header band — night sky with a moon low on the left
    -------------------------------------------------------------------------- */
 
 .site-header {
   background:
-    radial-gradient(at 10% 60%, rgba(140, 14, 26, 0.95) 0%, transparent 55%),
-    radial-gradient(at 75% 20%, rgba(107, 16, 24, 0.85) 0%, transparent 50%),
-    radial-gradient(at 50% 95%, rgba(201, 148, 10, 0.25) 0%, transparent 55%),
-    var(--burgundy);
-  border-bottom: 2px solid var(--gold);
-  color: var(--cream);
+    radial-gradient(at 8% 55%, rgba(143, 216, 255, 0.28) 0%, transparent 42%),
+    radial-gradient(at 40% 10%, rgba(42, 99, 200, 0.55) 0%, transparent 55%),
+    radial-gradient(at 82% 80%, rgba(123, 95, 196, 0.35) 0%, transparent 52%),
+    var(--midnight);
+  border-bottom: 2px solid var(--ice-rich);
+  color: var(--snow);
   padding: 1rem 1.5rem;
   margin: -1.5rem -1.5rem 1.75rem -1.5rem;
   display: flex;
@@ -564,52 +603,53 @@ h1, h2, h3, .font-serif {
 }
 
 .site-header h1,
-.site-header h2 { color: var(--cream); }
+.site-header h2 { color: var(--snow); }
 
-.site-header .eyebrow { color: var(--gold-pale); }
+.site-header .eyebrow { color: var(--ice-pale); }
 
 .site-header .btn-secondary {
-  background: rgba(250, 243, 224, 0.08);
-  border-color: rgba(240, 180, 41, 0.5);
-  color: var(--cream);
+  background: rgba(233, 242, 255, 0.08);
+  border-color: rgba(143, 216, 255, 0.5);
+  color: var(--snow);
 }
 
 .site-header .btn-secondary:hover:not(:disabled) {
-  background: rgba(250, 243, 224, 0.18);
-  border-color: var(--gold-light);
+  background: rgba(233, 242, 255, 0.18);
+  border-color: var(--ice-light);
   color: #fff;
 }
 
 .site-header .timer-badge {
-  background: rgba(22, 20, 20, 0.55);
-  border-color: var(--gold-light);
-  color: var(--gold-pale);
+  background: rgba(11, 18, 38, 0.55);
+  border-color: var(--ice-light);
+  color: var(--ice-pale);
 }
 
 .site-header .timer-badge.warning-5m {
-  background: rgba(240, 180, 41, 0.2);
-  color: #ffe9a8;
+  background: rgba(155, 124, 224, 0.28);
+  border-color: var(--iris-bright);
+  color: #e4d8ff;
 }
 
 .site-header .timer-badge.warning-1m {
-  background: rgba(196, 42, 56, 0.35);
-  border-color: #ff8a94;
-  color: #ffd9dc;
+  background: rgba(224, 85, 154, 0.3);
+  border-color: #ff9dc6;
+  color: #ffd7e8;
 }
 
-/* Gold progress bar — the "33/33 winners revealed" meter on the Awards site */
+/* Progress meter — a rising line of moonlight */
 .progress-track {
   width: 100%;
   height: 6px;
-  background: rgba(26, 15, 10, 0.15);
+  background: rgba(11, 18, 38, 0.14);
   overflow: hidden;
 }
 
-.site-header .progress-track { background: rgba(250, 243, 224, 0.2); }
+.site-header .progress-track { background: rgba(233, 242, 255, 0.2); }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--gold-rich), var(--gold-light));
+  background: linear-gradient(90deg, var(--azure), var(--ice-light));
   transition: width var(--t-normal) ease;
 }
 
@@ -620,7 +660,7 @@ h1, h2, h3, .font-serif {
 .grid-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(26, 15, 10, 0.55);
+  background: rgba(11, 18, 38, 0.55);
   backdrop-filter: blur(6px);
   z-index: 1000;
   display: flex;
@@ -631,8 +671,8 @@ h1, h2, h3, .font-serif {
 
 .grid-modal {
   background: var(--surface);
-  border: 1px solid var(--gold);
-  border-top: 3px solid var(--crimson);
+  border: 1px solid var(--ice);
+  border-top: 3px solid var(--azure);
   border-radius: var(--radius-lg);
   max-width: 620px;
   width: 100%;
@@ -656,7 +696,7 @@ h1, h2, h3, .font-serif {
   height: 48px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
-  background: var(--parchment);
+  background: var(--frost);
   color: var(--ink-muted);
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -669,21 +709,21 @@ h1, h2, h3, .font-serif {
 }
 
 .q-grid-item:hover {
-  border-color: var(--gold);
+  border-color: var(--ice);
   background: var(--surface-hover);
   color: var(--ink);
 }
 
 .q-grid-item.answered {
-  background: var(--gold-wash);
-  border-color: var(--gold);
+  background: var(--ice-wash);
+  border-color: var(--ice);
   color: var(--ink);
 }
 
 .q-grid-item.current {
-  outline: 2px solid var(--crimson);
+  outline: 2px solid var(--azure);
   outline-offset: 1px;
-  color: var(--crimson);
+  color: var(--azure);
   font-weight: 700;
 }
 
@@ -704,28 +744,28 @@ h1, h2, h3, .font-serif {
 
 .callout-warning {
   background: var(--warning-wash);
-  border-color: rgba(240, 180, 41, 0.45);
-  border-left-color: var(--gold-light);
+  border-color: rgba(123, 95, 196, 0.4);
+  border-left-color: var(--iris);
   color: var(--warning);
 }
 
 .callout-success {
   background: var(--success-wash);
-  border-color: rgba(63, 125, 78, 0.3);
+  border-color: rgba(47, 125, 110, 0.3);
   border-left-color: var(--success);
   color: var(--success);
 }
 
 .callout-error {
-  background: var(--crimson-wash);
-  border-color: rgba(140, 14, 26, 0.3);
-  border-left-color: var(--crimson);
-  color: var(--crimson);
+  background: var(--rose-wash);
+  border-color: rgba(176, 42, 107, 0.3);
+  border-left-color: var(--rose);
+  color: var(--rose);
 }
 
 .callout-muted {
-  background: var(--parchment);
-  border-left-color: var(--gold);
+  background: var(--frost);
+  border-left-color: var(--ice);
   color: var(--ink-muted);
 }
 
@@ -748,7 +788,7 @@ h1, h2, h3, .font-serif {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  border-bottom: 2px solid var(--gold);
+  border-bottom: 2px solid var(--ice);
   white-space: nowrap;
 }
 
@@ -766,7 +806,7 @@ h1, h2, h3, .font-serif {
 .leaderboard-table tbody tr:hover { background: var(--surface-hover); }
 
 .leaderboard-table tr.is-you {
-  background: var(--gold-wash);
+  background: var(--ice-wash);
   font-weight: 700;
 }
 
@@ -787,9 +827,10 @@ h1, h2, h3, .font-serif {
   white-space: nowrap;
 }
 
-.rank-1 { color: var(--gold-rich); font-size: 0.95rem; }
-.rank-2 { color: #8c8582; font-size: 0.9rem; }
-.rank-3 { color: #a9662d; font-size: 0.9rem; }
+/* Top three read as moonlight → starlight → dusk, not gold/silver/bronze */
+.rank-1 { color: var(--azure); font-size: 0.95rem; text-shadow: 0 0 12px rgba(143, 216, 255, 0.7); }
+.rank-2 { color: var(--ice-deep); font-size: 0.9rem; }
+.rank-3 { color: var(--iris); font-size: 0.9rem; }
 
 /* --------------------------------------------------------------------------
    Stat tiles (host dashboard)
@@ -839,9 +880,9 @@ h1, h2, h3, .font-serif {
   margin-top: 0.4rem;
 }
 
-.status-locked  { background: var(--warning-wash); border-color: var(--gold-light); color: var(--warning); }
-.status-active  { background: var(--success-wash); border-color: rgba(63, 125, 78, 0.4); color: var(--success); }
-.status-finished{ background: var(--crimson-wash); border-color: rgba(140, 14, 26, 0.4); color: var(--crimson); }
+.status-locked  { background: var(--warning-wash); border-color: rgba(123, 95, 196, 0.45); color: var(--warning); }
+.status-active  { background: var(--success-wash); border-color: rgba(47, 125, 110, 0.4); color: var(--success); }
+.status-finished{ background: var(--azure-wash); border-color: rgba(42, 99, 200, 0.4); color: var(--azure); }
 
 /* --------------------------------------------------------------------------
    Utilities
@@ -855,24 +896,25 @@ h1, h2, h3, .font-serif {
 }
 
 @keyframes pulse-seal {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(140, 14, 26, 0.3); }
-  50%      { box-shadow: 0 0 0 12px rgba(140, 14, 26, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(143, 216, 255, 0.45); }
+  50%      { box-shadow: 0 0 0 12px rgba(143, 216, 255, 0); }
 }
 
-/* Circular crest used on the entry / waiting / auth screens,
-   mirroring the round club logo medallion on nuscas.com */
+/* Circular crest on the entry / waiting / auth screens — a small moon */
 .crest {
   width: 76px;
   height: 76px;
   border-radius: 50%;
-  background: var(--panel);
-  border: 2px solid var(--gold);
+  background:
+    radial-gradient(circle at 32% 28%, rgba(143, 216, 255, 0.35) 0%, transparent 60%),
+    var(--panel);
+  border: 2px solid var(--ice-rich);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 1.25rem auto;
-  color: var(--gold-light);
-  box-shadow: var(--shadow);
+  color: var(--ice-light);
+  box-shadow: var(--shadow), var(--glow);
 }
 
 .sr-only {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Skull, KeyRound, ArrowRight } from 'lucide-react';
+import { KeyRound, ArrowRight } from 'lucide-react';
 
 interface StartScreenProps {
   onStartQuiz: (displayName: string) => void;
@@ -24,16 +24,13 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
       <div className="riddle-card card-featured" style={{ maxWidth: '500px', width: '100%' }}>
-        {/* Dark crest panel, echoing the club logo medallion on the NUSCAS homepage */}
+        {/* Header panel with moon cover background */}
         <div className="cut-panel" style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <div className="crest" style={{ marginBottom: '1rem' }}>
-            <Skull size={34} />
-          </div>
-          <h1 className="font-serif" style={{ fontSize: '2.4rem', letterSpacing: '0.06em' }}>
+          <h1 className="font-serif" style={{ fontSize: '2.4rem', letterSpacing: '0.06em', textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
             ARLECCHINO
           </h1>
-          <p className="eyebrow" style={{ color: 'var(--gold-pale)', marginTop: '0.5rem' }}>
-            NUSCAS Welcome Tea 2026
+          <p className="eyebrow" style={{ color: 'var(--gold-pale)', marginTop: '0.5rem', textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}>
+            The King of Riddles
           </p>
         </div>
 
@@ -57,7 +54,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
                 type="text"
                 required
                 maxLength={40}
-                placeholder="e.g. Anitan, Sakurajima Mai"
+                placeholder="e.g. Anikun"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
@@ -88,7 +85,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
 
         <hr className="rule-gold" style={{ margin: '1.5rem 0 1rem' }} />
         <p className="eyebrow" style={{ textAlign: 'center' }}>
-          7 Minute Limit &nbsp;·&nbsp; NUSCAS Welcome Tea
+          7 Minutes Limit &nbsp;·&nbsp; NUSCAS Welcome Tea
         </p>
       </div>
     </div>
