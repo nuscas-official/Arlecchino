@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS quiz (
   id            TEXT PRIMARY KEY,
   title         TEXT NOT NULL,
-  duration_ms   INTEGER NOT NULL,      -- e.g. 2400000 for 40 min
+  duration_ms   INTEGER NOT NULL,      -- e.g. 420000 for 7 min
   grace_ms      INTEGER NOT NULL DEFAULT 60000,
   opens_at      TIMESTAMPTZ,
   closes_at     TIMESTAMPTZ

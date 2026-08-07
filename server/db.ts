@@ -1,4 +1,6 @@
 import { neon } from '@neondatabase/serverless';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 
 export interface Quiz {
   id: string;
@@ -108,9 +110,10 @@ let localDbInstance: any = null;
 function getLocalSqlite() {
   if (localDbInstance) return localDbInstance;
   try {
-    // Dynamic import to prevent bundling native C++ addon in Cloudflare Workers
-    const Database = require('better-sqlite3');
-    localDbInstance = new Database('arlecchino.db');
+    const req = typeof require !== 'undefined' ? require : createRequire(import.meta.url);
+    const Database = req('better-sqlite3');
+    const dbPath = path.resolve(process.cwd(), 'arlecchino.db');
+    localDbInstance = new Database(dbPath);
     localDbInstance.pragma('journal_mode = WAL');
 
     localDbInstance.exec(`
@@ -162,6 +165,7 @@ function getLocalSqlite() {
 
     return localDbInstance;
   } catch (err) {
+    console.error('[getLocalSqlite ERROR]', err);
     return null;
   }
 }
@@ -215,7 +219,10 @@ export const dbService = {
           closes_at = excluded.closes_at
       `);
       stmt.run(quiz.id, quiz.title, quiz.duration_ms, quiz.grace_ms, quiz.status || 'locked', quiz.opens_at || null, quiz.closes_at || null);
+      return;
     }
+
+    throw new Error('[dbService.upsertQuiz] Database connection unavailable.');
   },
 
   async setQuizStatus(quizId: string, status: 'locked' | 'active' | 'finished', envDbUrl?: string): Promise<void> {
@@ -241,7 +248,10 @@ export const dbService = {
       } else {
         db.prepare('UPDATE quiz SET status = ? WHERE id = ?').run(status, quizId);
       }
+      return;
     }
+
+    throw new Error('[dbService.setQuizStatus] Database connection unavailable.');
   },
 
   async upsertQuestion(q: Question, envDbUrl?: string): Promise<void> {
@@ -276,7 +286,10 @@ export const dbService = {
           points = excluded.points
       `);
       stmt.run(q.id, q.quiz_id, q.position, q.prompt, q.image_url || null, optsJson, q.correct_key, q.points);
+      return;
     }
+
+    throw new Error('[dbService.upsertQuestion] Database connection unavailable.');
   },
 
   async getPublicQuestionsShuffled(quizId: string, participantId: string, envDbUrl?: string): Promise<QuestionPublic[]> {

@@ -1,18 +1,18 @@
 import { dbService, Quiz, Question } from './db.js';
 
-export function seedArlecchinoQuiz() {
+export async function seedArlecchinoQuiz(envDbUrl?: string) {
   const quizId = 'arlecchino-riddles-1';
   
   const quiz: Quiz = {
     id: quizId,
     title: 'Arlecchino: King of Riddles Trial',
-    duration_ms: 600000,  // 10 minutes
-    grace_ms: 60000,      // 60 seconds grace period
-    status: 'locked',     // Default to locked until host unlocks
+    duration_ms: 420000,   // 7 minutes
+    grace_ms: 60000,       // 60 seconds grace period
+    status: 'locked',      // Default to locked until host unlocks
     opens_at: new Date().toISOString(),
   };
 
-  dbService.upsertQuiz(quiz);
+  await dbService.upsertQuiz(quiz, envDbUrl);
 
   // Arlecchino Lies of P Riddles & Custom Tricky MCQs (50 items)
   const riddlesData: Array<{
@@ -146,7 +146,8 @@ export function seedArlecchinoQuiz() {
     });
   }
 
-  riddlesData.forEach((item, idx) => {
+  for (let idx = 0; idx < riddlesData.length; idx++) {
+    const item = riddlesData[idx];
     const q: Question = {
       id: `q-${idx + 1}`,
       quiz_id: quizId,
@@ -157,8 +158,8 @@ export function seedArlecchinoQuiz() {
       correct_key: item.correctKey,
       points: 1,
     };
-    dbService.upsertQuestion(q);
-  });
+    await dbService.upsertQuestion(q, envDbUrl);
+  }
 
   console.log(`[Seed] Seeded Quiz '${quizId}' with ${riddlesData.length} questions successfully.`);
 }

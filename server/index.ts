@@ -198,22 +198,43 @@ app.get('/api/leaderboard/:quizId', async (c) => {
   return c.json({ leaderboard, cached: false });
 });
 
+app.post('/api/admin/seed', async (c) => {
+  if (!verifyAdminSecret(c)) {
+    return c.json({ error: 'Unauthorized Admin' }, 403);
+  }
+
+  try {
+    const { seedArlecchinoQuiz } = await import('./seed.js');
+    await seedArlecchinoQuiz(c.env?.DATABASE_URL);
+    leaderboardCache = null;
+    return c.json({ status: 'ok', message: 'Database seeded successfully.' });
+  } catch (err: any) {
+    console.error('Error seeding database:', err);
+    return c.json({ error: 'Failed to seed database', details: String(err?.message || err) }, 500);
+  }
+});
+
 app.post('/api/admin/quiz/status', async (c) => {
   if (!verifyAdminSecret(c)) {
     return c.json({ error: 'Unauthorized Admin' }, 403);
   }
 
-  const body = await c.req.json();
-  const { quizId, status } = body;
+  try {
+    const body = await c.req.json();
+    const { quizId, status } = body;
 
-  if (!['locked', 'active', 'finished'].includes(status)) {
-    return c.json({ error: 'Invalid status' }, 400);
+    if (!['locked', 'active', 'finished'].includes(status)) {
+      return c.json({ error: 'Invalid status' }, 400);
+    }
+
+    await dbService.setQuizStatus(quizId, status, c.env?.DATABASE_URL);
+    leaderboardCache = null;
+
+    return c.json({ status: 'ok', quizStatus: status });
+  } catch (err: any) {
+    console.error('Error setting quiz status:', err);
+    return c.json({ error: 'Failed to update quiz status', details: String(err?.message || err) }, 500);
   }
-
-  await dbService.setQuizStatus(quizId, status, c.env?.DATABASE_URL);
-  leaderboardCache = null;
-
-  return c.json({ status: 'ok', quizStatus: status });
 });
 
 app.post('/api/admin/quiz/reset', async (c) => {
@@ -221,13 +242,18 @@ app.post('/api/admin/quiz/reset', async (c) => {
     return c.json({ error: 'Unauthorized Admin' }, 403);
   }
 
-  const body = await c.req.json();
-  const { quizId } = body;
+  try {
+    const body = await c.req.json();
+    const { quizId } = body;
 
-  await dbService.resetQuizData(quizId, c.env?.DATABASE_URL);
-  leaderboardCache = null;
+    await dbService.resetQuizData(quizId, c.env?.DATABASE_URL);
+    leaderboardCache = null;
 
-  return c.json({ status: 'ok', message: 'Quiz submissions and participant sessions reset to 0.' });
+    return c.json({ status: 'ok', message: 'Quiz submissions and participant sessions reset to 0.' });
+  } catch (err: any) {
+    console.error('Error resetting quiz:', err);
+    return c.json({ error: 'Failed to reset quiz data', details: String(err?.message || err) }, 500);
+  }
 });
 
 app.get('/api/admin/stats/:quizId', async (c) => {
@@ -265,12 +291,13 @@ app.get('/api/admin/export/:quizId', async (c) => {
 if (typeof process !== 'undefined' && process.release?.name === 'node') {
   import('@hono/node-server').then(({ serve }) => {
     import('./seed.js').then(({ seedArlecchinoQuiz }) => {
-      seedArlecchinoQuiz();
-      const port = Number(process.env.PORT) || 3001;
-      console.log(`[Hono Server] Running on http://localhost:${port}`);
-      serve({
-        fetch: app.fetch,
-        port,
+      seedArlecchinoQuiz().then(() => {
+        const port = Number(process.env.PORT) || 3001;
+        console.log(`[Hono Server] Running on http://localhost:${port}`);
+        serve({
+          fetch: app.fetch,
+          port,
+        });
       });
     });
   });

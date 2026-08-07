@@ -25,7 +25,7 @@ export function App() {
   const [sessionToken, setSessionToken] = useState('');
   const [participantId, setParticipantId] = useState('');
   const [deadlineIso, setDeadlineIso] = useState('');
-  const [durationMs, setDurationMs] = useState(600000);
+  const [durationMs, setDurationMs] = useState(420000);
 
   const [questions, setQuestions] = useState<QuestionPublic[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -60,7 +60,7 @@ export function App() {
 
     const qList: QuestionPublic[] = qData.questions || [];
     setQuestions(qList);
-    setDeadlineIso(qData.quiz?.deadlineIso || new Date(Date.now() + 600000).toISOString());
+    setDeadlineIso(qData.quiz?.deadlineIso || new Date(Date.now() + 420000).toISOString());
 
     // Pre-warm initial 8 images
     const initialImages = qList

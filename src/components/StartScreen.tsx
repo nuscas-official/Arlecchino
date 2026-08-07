@@ -88,7 +88,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
 
         <hr className="rule-gold" style={{ margin: '1.5rem 0 1rem' }} />
         <p className="eyebrow" style={{ textAlign: 'center' }}>
-          40 Minute Limit &nbsp;·&nbsp; Live Leaderboard
+          7 Minute Limit &nbsp;·&nbsp; Live Leaderboard
         </p>
       </div>
     </div>
