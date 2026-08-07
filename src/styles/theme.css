@@ -915,6 +915,14 @@ h1, h2, h3, .font-serif {
   margin: 0 auto 1.25rem auto;
   color: var(--ice-light);
   box-shadow: var(--shadow), var(--glow);
+  overflow: hidden;
+}
+
+.crest img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .sr-only {
@@ -930,9 +938,10 @@ h1, h2, h3, .font-serif {
 }
 
 @media (max-width: 640px) {
-  .app-container { padding: 1rem; }
-  .site-header { margin: -1rem -1rem 1.25rem -1rem; padding: 0.9rem 1rem; }
-  .riddle-card { padding: 1.35rem; }
+  .app-container { padding: 0.75rem; }
+  .site-header { margin: -0.75rem -0.75rem 1.25rem -0.75rem; padding: 0.9rem 1rem; }
+  .riddle-card { padding: 1.25rem 1rem; }
+  .cut-panel { padding: 1.75rem 0.85rem; }
   :root { --cut: 0.9rem; }
 }
 

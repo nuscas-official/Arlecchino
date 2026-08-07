@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Lock, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { fetchQuizStatus, pollWithJitter, QuizStatus } from '../services/quizStatus';
 
 interface WaitingRoomProps {
@@ -39,7 +39,7 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
       <div className="riddle-card card-featured" style={{ maxWidth: '540px', width: '100%', textAlign: 'center', padding: '3rem 2rem' }}>
         <div className="crest" style={{ animation: 'pulse-seal 2.4s infinite' }}>
-          <Lock size={34} />
+          <img src="/images/columbina-waiting.webp" alt="Columbina Waiting" />
         </div>
 
         <p className="eyebrow eyebrow-crimson">Arlecchino is preparing the riddles</p>

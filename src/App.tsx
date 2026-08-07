@@ -278,7 +278,7 @@ export function App() {
   return (
     <div className="app-container">
       {/* Top Bar for Admin Switch */}
-      {view !== 'admin' && view !== 'quiz' && (
+      {view === 'start' && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
           <button onClick={() => setView('admin')} className="btn-ghost">
             <ShieldCheck size={14} /> Host Dashboard

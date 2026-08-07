@@ -130,7 +130,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
         <div className="riddle-card card-featured" style={{ maxWidth: '460px', width: '100%' }}>
           <div style={{ textAlign: 'center' }}>
             <div className="crest">
-              <ShieldCheck size={30} />
+              <img src="/images/sandrone-warning.webp" alt="Sandrone Warning" />
             </div>
             <p className="eyebrow eyebrow-crimson">Restricted</p>
             <h2 className="font-serif" style={{ fontSize: '1.9rem', margin: '0.2rem 0 0.5rem' }}>

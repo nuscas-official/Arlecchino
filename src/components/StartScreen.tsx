@@ -26,7 +26,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
       <div className="riddle-card card-featured" style={{ maxWidth: '500px', width: '100%' }}>
         {/* Header panel with moon cover background */}
         <div className="cut-panel" style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <h1 className="font-serif" style={{ fontSize: '2.4rem', letterSpacing: '0.06em', textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+          <h1 className="font-serif" style={{ fontSize: 'clamp(1.4rem, 7vw, 2.4rem)', letterSpacing: '0.04em', textShadow: '0 2px 8px rgba(0,0,0,0.6)', wordBreak: 'break-word' }}>
             ARLECCHINO
           </h1>
           <p className="eyebrow" style={{ color: 'var(--gold-pale)', marginTop: '0.5rem', textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}>
