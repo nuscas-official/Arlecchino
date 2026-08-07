@@ -4,6 +4,7 @@ import { Grid } from 'lucide-react';
 
 interface RiddleHeaderProps {
   displayName: string;
+  participantCode?: string;
   deadlineIso: string;
   durationMs: number;
   totalQuestions: number;
@@ -14,6 +15,7 @@ interface RiddleHeaderProps {
 
 export const RiddleHeader: React.FC<RiddleHeaderProps> = ({
   displayName,
+  participantCode,
   deadlineIso,
   durationMs,
   totalQuestions,
@@ -32,6 +34,11 @@ export const RiddleHeader: React.FC<RiddleHeaderProps> = ({
         </h1>
         <p style={{ fontSize: '0.85rem', color: 'var(--gold-pale)' }}>
           Participant: <strong style={{ color: 'var(--cream)' }}>{displayName}</strong>
+          {participantCode && (
+            <span className="mono-num" style={{ marginLeft: '0.4rem', opacity: 0.75 }}>
+              #{participantCode}
+            </span>
+          )}
         </p>
       </div>
 

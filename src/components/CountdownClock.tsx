@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 
 interface CountdownClockProps {
@@ -16,18 +16,30 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
     return Math.max(0, new Date(deadlineIso).getTime() - Date.now());
   });
 
-  useEffect(() => {
-    let triggered = false;
+  // The fired flag must outlive the effect. It used to be a local, and the
+  // effect re-subscribes whenever onDeadlineReached changes identity (which is
+  // every keystroke on the answer sheet), so the guard was reset constantly and
+  // the deadline handler fired over and over instead of exactly once.
+  const firedForDeadline = useRef<string | null>(null);
 
+  // Read through a ref so a new callback identity never restarts the timer.
+  const onDeadlineReachedRef = useRef(onDeadlineReached);
+  useEffect(() => {
+    onDeadlineReachedRef.current = onDeadlineReached;
+  }, [onDeadlineReached]);
+
+  useEffect(() => {
     const updateTimer = () => {
       const now = Date.now();
       const target = new Date(deadlineIso).getTime();
       const diff = Math.max(0, target - now);
       setRemainingMs(diff);
 
-      if (diff <= 0 && !triggered) {
-        triggered = true;
-        onDeadlineReached();
+      // Also covers a deadline that was already in the past when we mounted —
+      // e.g. a tab restored after the quiz window closed.
+      if (diff <= 0 && firedForDeadline.current !== deadlineIso) {
+        firedForDeadline.current = deadlineIso;
+        onDeadlineReachedRef.current();
       }
     };
 
@@ -47,7 +59,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [deadlineIso, onDeadlineReached]);
+  }, [deadlineIso]);
 
   // Format mm:ss or hh:mm:ss
   const totalSeconds = Math.floor(remainingMs / 1000);

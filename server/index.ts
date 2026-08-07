@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
-import { dbService } from './db.js';
+import { dbService, isPlaceholderSubmission, participantCode } from './db.js';
 import { seedArlecchinoQuiz } from './seed.js';
 
 const app = new Hono<{ Bindings: { DATABASE_URL?: string; ADMIN_SECRET?: string } }>();
@@ -33,6 +33,9 @@ function verifyAdminSecret(c: any) {
 const startSchema = z.object({
   quizId: z.string().min(1),
   displayName: z.string().min(1).max(50).trim(),
+  // Presented by a returning tab to reclaim its own session. Identity comes
+  // from this token alone — never from the display name, which may be shared.
+  sessionToken: z.string().min(1).optional(),
 });
 
 app.post('/api/session/start', async (c) => {
@@ -40,22 +43,37 @@ app.post('/api/session/start', async (c) => {
     const body = await c.req.json();
     const parsed = startSchema.parse(body);
 
-    const quiz = await dbService.getQuiz(parsed.quizId, c.env?.DATABASE_URL);
+    let quiz = await dbService.getQuiz(parsed.quizId, c.env?.DATABASE_URL);
     if (!quiz) {
       return c.json({ error: 'Quiz not found' }, 404);
     }
+    quiz = await dbService.maybeAutoFinish(quiz, c.env?.DATABASE_URL);
 
-    const participant = await dbService.getOrCreateParticipant(quiz.id, parsed.displayName, c.env?.DATABASE_URL);
+    let participant = null;
+    if (parsed.sessionToken) {
+      const existing = await dbService.getParticipantByToken(parsed.sessionToken, c.env?.DATABASE_URL);
+      if (existing && existing.quiz_id === quiz.id) {
+        participant = existing;
+      }
+    }
+    if (!participant) {
+      participant = await dbService.createParticipant(quiz.id, parsed.displayName, c.env?.DATABASE_URL);
+    }
+
+    const submission = await dbService.getSubmission(participant.id, c.env?.DATABASE_URL);
     const startedAtTime = new Date(quiz.opens_at || participant.started_at).getTime();
     const deadline = new Date(startedAtTime + quiz.duration_ms).toISOString();
 
     return c.json({
       participantId: participant.id,
+      participantCode: participantCode(participant.id),
+      displayName: participant.display_name,
       sessionToken: participant.session_token,
       startedAt: participant.started_at,
       deadline,
       durationMs: quiz.duration_ms,
       quizStatus: quiz.status,
+      alreadySubmitted: Boolean(submission) && !isPlaceholderSubmission(submission),
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -73,10 +91,11 @@ app.get('/api/quiz/:quizId', async (c) => {
   }
 
   const quizId = c.req.param('quizId');
-  const quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
+  let quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
   if (!quiz) {
     return c.json({ error: 'Quiz not found' }, 404);
   }
+  quiz = await dbService.maybeAutoFinish(quiz, c.env?.DATABASE_URL);
 
   if (quiz.status === 'locked') {
     return c.json({
@@ -126,18 +145,15 @@ app.post('/api/submit', async (c) => {
 
     const nowMs = Date.now();
     const quizStartTimeMs = new Date(quiz.opens_at || participant.started_at).getTime();
-    let elapsedMs = nowMs - quizStartTimeMs;
+    const elapsedMs = Math.max(0, nowMs - quizStartTimeMs);
 
-    const maxAllowedMs = quiz.duration_ms + quiz.grace_ms;
-    if (elapsedMs > maxAllowedMs) {
-      return c.json({ error: 'Quiz deadline has expired. Submission rejected.' }, 410);
-    }
-
-    let wasLate = false;
-    if (elapsedMs > quiz.duration_ms) {
-      wasLate = true;
-      elapsedMs = quiz.duration_ms;
-    }
+    // A late paper is always accepted rather than rejected — dropping answers
+    // on the floor is worse than recording them. Integrity is preserved by
+    // storing the TRUE elapsed time: the leaderboard sorts by elapsed ascending
+    // within a score, so stalling past the deadline can only cost you rank.
+    // (Previously this 410'd past duration + grace, which is why a host
+    // force-ending after the timer expired graded everyone 0.)
+    const wasLate = elapsedMs > quiz.duration_ms;
 
     const internalQuestions = await dbService.getInternalQuestions(participant.quiz_id, c.env?.DATABASE_URL);
     let score = 0;
@@ -161,7 +177,7 @@ app.post('/api/submit', async (c) => {
       score,
       correct_count: correctCount,
       answered_count: answeredCount,
-      elapsed_ms: Math.max(0, elapsedMs),
+      elapsed_ms: elapsedMs,
       auto_submitted: parsed.autoSubmitted,
       was_late: wasLate,
     }, c.env?.DATABASE_URL);
@@ -173,6 +189,7 @@ app.post('/api/submit', async (c) => {
       correctCount: submission.correct_count,
       answeredCount: submission.answered_count,
       elapsedMs: submission.elapsed_ms,
+      wasLate: submission.was_late,
       alreadySubmitted,
       submittedAt: submission.submitted_at,
     });
@@ -262,6 +279,14 @@ app.get('/api/admin/stats/:quizId', async (c) => {
   }
 
   const quizId = c.req.param('quizId');
+
+  // The admin dashboard polls this every 3s, which is what drives the quiz to
+  // close itself once the timer has fully run out.
+  const quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
+  if (quiz) {
+    await dbService.maybeAutoFinish(quiz, c.env?.DATABASE_URL);
+  }
+
   const stats = await dbService.getAdminStats(quizId, c.env?.DATABASE_URL);
   const leaderboard = await dbService.getLeaderboard(quizId, 10, c.env?.DATABASE_URL);
 

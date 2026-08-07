@@ -3,22 +3,26 @@ import { Trophy, Search, RefreshCw, Download } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface LeaderboardEntry {
+  participantId: string;
   displayName: string;
+  /** Short public tag; the only thing separating two identical display names. */
+  code: string;
   score: number;
   elapsedMs: number;
   rank: number;
   submittedAt: string;
+  wasLate?: boolean;
 }
 
 interface LeaderboardProps {
   quizId: string;
-  userDisplayName?: string;
+  userParticipantId?: string;
   onRetakeOrHome?: () => void;
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({
   quizId,
-  userDisplayName,
+  userParticipantId,
   onRetakeOrHome,
 }) => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -48,8 +52,19 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     return () => clearInterval(interval);
   }, [quizId]);
 
-  const filtered = leaderboard.filter((entry) =>
-    entry.displayName.toLowerCase().includes(search.toLowerCase())
+  const term = search.trim().toLowerCase();
+  const filtered = leaderboard.filter(
+    (entry) =>
+      entry.displayName.toLowerCase().includes(term) ||
+      (entry.code || '').toLowerCase().includes(term)
+  );
+
+  // Only surface the disambiguating code where a name is actually shared, so
+  // the common case stays clean.
+  const duplicateNames = new Set(
+    leaderboard
+      .map((e) => e.displayName.trim().toLowerCase())
+      .filter((name, idx, all) => all.indexOf(name) !== idx)
   );
 
   const formatElapsed = (ms: number) => {
@@ -131,8 +146,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             </thead>
             <tbody>
               {filtered.map((entry) => {
-                const isCurrentUser =
-                  userDisplayName && entry.displayName.toLowerCase() === userDisplayName.toLowerCase();
+                // Matched on participant id: name matching used to highlight
+                // every person who happened to share your name.
+                const isCurrentUser = Boolean(userParticipantId) && entry.participantId === userParticipantId;
+                const showCode =
+                  isCurrentUser || duplicateNames.has(entry.displayName.trim().toLowerCase());
 
                 let rankBadge = `${entry.rank}`.padStart(2, '0');
                 let rankClass = '';
@@ -148,12 +166,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                 }
 
                 return (
-                  <tr key={entry.displayName + entry.rank} className={isCurrentUser ? 'is-you' : ''}>
+                  <tr key={entry.participantId} className={isCurrentUser ? 'is-you' : ''}>
                     <td>
                       <span className={`rank-badge ${rankClass}`}>{rankBadge}</span>
                     </td>
                     <td style={{ color: isCurrentUser ? 'var(--crimson)' : undefined }}>
                       {entry.displayName}
+                      {showCode && entry.code && (
+                        <span className="mono-num" style={{ marginLeft: '0.4rem', color: 'var(--ink-muted)' }}>
+                          #{entry.code}
+                        </span>
+                      )}
                       {isCurrentUser && ' (You)'}
                     </td>
                     <td style={{ fontWeight: 700 }}>{entry.score} pts</td>

@@ -5,11 +5,64 @@ export interface SubmissionResult {
   correctCount: number;
   answeredCount: number;
   elapsedMs: number;
+  wasLate?: boolean;
   alreadySubmitted: boolean;
   submittedAt: string;
 }
 
+/** A rejection the server will keep rejecting — retrying it is pointless. */
+class TerminalSubmissionError extends Error {
+  readonly terminal = true;
+}
+
 const STORAGE_KEY_PREFIX = 'arlecchino_answers_';
+const SESSION_KEY_PREFIX = 'arlecchino_session_';
+
+export interface StoredSession {
+  quizId: string;
+  participantId: string;
+  sessionToken: string;
+  displayName: string;
+}
+
+/**
+ * The session token is the only thing that identifies a participant — names are
+ * not unique. Persisting it means a refresh mid-quiz reclaims the same row
+ * instead of silently spawning a second participant under the same name.
+ *
+ * Deliberately sessionStorage, not localStorage: one tab is one participant.
+ * A shared localStorage key would let two people sitting at the same browser
+ * overwrite each other's session, which is the exact bug this is fixing.
+ * Answers stay in localStorage — they are keyed by participant id, so they
+ * cannot collide.
+ */
+export function saveSession(session: StoredSession) {
+  try {
+    sessionStorage.setItem(`${SESSION_KEY_PREFIX}${session.quizId}`, JSON.stringify(session));
+  } catch (err) {
+    console.error('Failed to persist session:', err);
+  }
+}
+
+export function loadSession(quizId: string): StoredSession | null {
+  try {
+    const raw = sessionStorage.getItem(`${SESSION_KEY_PREFIX}${quizId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    return parsed?.sessionToken && parsed?.participantId ? parsed : null;
+  } catch (err) {
+    console.error('Failed to read session:', err);
+    return null;
+  }
+}
+
+export function clearSession(quizId: string) {
+  try {
+    sessionStorage.removeItem(`${SESSION_KEY_PREFIX}${quizId}`);
+  } catch (err) {
+    console.error('Failed to clear session:', err);
+  }
+}
 
 export function saveAnswersToDisk(participantId: string, answers: Record<string, string>) {
   try {
@@ -78,15 +131,21 @@ export async function submitQuizWithRetry(
         return data;
       }
 
-      // If 410 Gone (deadline passed grace period), don't retry endlessly
-      if (res.status === 410) {
+      // 4xx means the server has made up its mind (bad token, closed window).
+      // The old code threw here but the throw landed in the catch below, so it
+      // still burned all six attempts before surfacing anything to the user.
+      if (res.status >= 400 && res.status < 500) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Submission period has closed.');
+        throw new TerminalSubmissionError(errData.error || `Submission rejected (status ${res.status}).`);
       }
 
       throw new Error(`Server returned status ${res.status}`);
     } catch (err: any) {
       console.warn(`Submission attempt ${attempt} failed:`, err.message);
+
+      if (err instanceof TerminalSubmissionError) {
+        throw err;
+      }
 
       if (attempt >= maxAttempts) {
         throw new Error(`Failed to submit after ${maxAttempts} attempts: ${err.message}. Your answers remain safely stored in your browser.`);

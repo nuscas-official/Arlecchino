@@ -272,13 +272,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                   </button>
                 )}
                 {stats?.status === 'finished' && (
-                  <button
-                    onClick={() => handleUpdateStatus('active')}
-                    disabled={isUpdating}
-                    className="btn-secondary"
-                  >
-                    <RefreshCw size={16} /> Re-Open Quiz Session
-                  </button>
+                  <>
+                    {/* Re-runnable: grades anyone whose submission never landed. */}
+                    <button
+                      onClick={() => handleUpdateStatus('finished')}
+                      disabled={isUpdating}
+                      className="btn-secondary"
+                    >
+                      <CheckCircle2 size={16} /> Grade Outstanding
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus('active')}
+                      disabled={isUpdating}
+                      className="btn-secondary"
+                    >
+                      <RefreshCw size={16} /> Re-Open Quiz Session
+                    </button>
+                  </>
                 )}
 
                 <button
@@ -353,11 +363,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                 </thead>
                 <tbody>
                   {topParticipants.map((entry) => (
-                    <tr key={entry.displayName + entry.rank}>
+                    <tr key={entry.participantId || entry.rank}>
                       <td>
                         <span className="rank-badge">{String(entry.rank).padStart(2, '0')}</span>
                       </td>
-                      <td style={{ fontWeight: 600 }}>{entry.displayName}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        {entry.displayName}
+                        {/* Names are free text and repeat; the code does not. */}
+                        {entry.code && (
+                          <span className="mono-num" style={{ marginLeft: '0.4rem', fontWeight: 400, color: 'var(--ink-muted)' }}>
+                            #{entry.code}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ fontWeight: 700 }}>{entry.score} pts</td>
                       <td className="mono-num">{Math.floor(entry.elapsedMs / 1000)}s</td>
                     </tr>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WaitingRoom } from './components/WaitingRoom';
 import { RiddleHeader } from './components/RiddleHeader';
@@ -13,7 +13,9 @@ import {
   saveAnswersToDisk,
   loadAnswersFromDisk,
   submitQuizWithRetry,
-  SubmissionResult,
+  saveSession,
+  loadSession,
+  clearSession,
 } from './services/submissionManager';
 import { ShieldCheck } from 'lucide-react';
 
@@ -22,6 +24,7 @@ const QUIZ_ID = 'arlecchino-riddles-1';
 export function App() {
   const [view, setView] = useState<'start' | 'waiting' | 'quiz' | 'leaderboard' | 'admin'>('start');
   const [displayName, setDisplayName] = useState('');
+  const [participantCode, setParticipantCode] = useState('');
   const [sessionToken, setSessionToken] = useState('');
   const [participantId, setParticipantId] = useState('');
   const [deadlineIso, setDeadlineIso] = useState('');
@@ -38,6 +41,26 @@ export function App() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isAutoSubmit, setIsAutoSubmit] = useState(false);
+
+  /**
+   * Submission reads its inputs through refs so that executeSubmission keeps a
+   * stable identity. It used to depend on `answers` and `isSubmitting`, which
+   * meant every answer click produced a new callback, which tore down and
+   * rebuilt both the countdown timer and the force-end status poll.
+   */
+  const answersRef = useRef<Record<string, string>>({});
+  const sessionRef = useRef({ token: '', participantId: '' });
+  const isSubmittingRef = useRef(false);
+  const hasSubmittedRef = useRef(false);
+
+  const rememberSession = useCallback((token: string, pId: string, name: string) => {
+    sessionRef.current = { token, participantId: pId };
+    setSessionToken(token);
+    setParticipantId(pId);
+    setDisplayName(name);
+    saveSession({ quizId: QUIZ_ID, sessionToken: token, participantId: pId, displayName: name });
+  }, []);
 
   /**
    * Fetch Quiz Questions (handles randomized order & status check)
@@ -74,17 +97,16 @@ export function App() {
   }, []);
 
   /**
-   * Start Participant Session
+   * Open or reclaim a participant session. Passing an existing sessionToken
+   * reclaims that exact participant; without one the server always mints a new
+   * participant, so two people entering the same name stay separate.
    */
-  const handleStartSession = async (name: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const openSession = useCallback(
+    async (name: string, existingToken?: string) => {
       const res = await fetch(`${API_BASE_URL}/api/session/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quizId: QUIZ_ID, displayName: name }),
+        body: JSON.stringify({ quizId: QUIZ_ID, displayName: name, sessionToken: existingToken }),
       });
 
       if (!res.ok) {
@@ -92,16 +114,30 @@ export function App() {
       }
 
       const data = await res.json();
-      setDisplayName(name);
-      setSessionToken(data.sessionToken);
-      setParticipantId(data.participantId);
+      rememberSession(data.sessionToken, data.participantId, data.displayName || name);
+      setParticipantCode(data.participantCode || '');
       setDurationMs(data.durationMs);
 
-      // Rehydrate local storage draft answers
       const savedAnswers = loadAnswersFromDisk(data.participantId);
+      answersRef.current = savedAnswers;
       setAnswers(savedAnswers);
 
+      if (data.alreadySubmitted) {
+        hasSubmittedRef.current = true;
+        setView('leaderboard');
+        return;
+      }
+
       await loadQuestions(data.sessionToken, data.participantId);
+    },
+    [loadQuestions, rememberSession]
+  );
+
+  const handleStartSession = async (name: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await openSession(name);
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
@@ -109,57 +145,89 @@ export function App() {
     }
   };
 
+  // Reclaim an in-flight session after a refresh or a crashed tab. The clock is
+  // still running server-side, so dropping the participant back at the name
+  // screen would cost them the remaining time and duplicate their row.
+  useEffect(() => {
+    const stored = loadSession(QUIZ_ID);
+    if (!stored) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!cancelled) {
+          await openSession(stored.displayName, stored.sessionToken);
+        }
+      } catch (err) {
+        console.warn('Could not resume previous session:', err);
+        clearSession(QUIZ_ID);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [openSession]);
+
   const handleSelectOption = (optionKey: string) => {
     const currentQ = questions[currentIndex];
     if (!currentQ || !participantId) return;
 
     const newAnswers = { ...answers, [currentQ.id]: optionKey };
+    answersRef.current = newAnswers;
     setAnswers(newAnswers);
     saveAnswersToDisk(participantId, newAnswers);
     prefetchUpcomingQuestions(questions, currentIndex, 4);
   };
 
-  const executeSubmission = useCallback(
-    async (autoSubmitted = false) => {
-      if (!sessionToken || !participantId || isSubmitting) return;
+  const executeSubmission = useCallback(async (autoSubmitted = false) => {
+    const { token, participantId: pId } = sessionRef.current;
+    if (!token || !pId || isSubmittingRef.current || hasSubmittedRef.current) return;
 
-      setIsSubmitting(true);
-      setSubmitError(null);
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setIsAutoSubmit(autoSubmitted);
+    // Auto-submission used to run completely invisibly: the modal only opened
+    // on a manual submit, so when the timer expired the participant just sat on
+    // the question screen with no indication anything had happened — and saw
+    // nothing at all if the submission then failed.
+    setShowSubmitModal(true);
 
-      if (autoSubmitted) {
-        const jitterMs = Math.floor(Math.random() * 1500);
-        await new Promise((r) => setTimeout(r, jitterMs));
-      }
+    if (autoSubmitted) {
+      // Spread the thundering herd of simultaneous deadline submissions.
+      await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 1500)));
+    }
 
-      try {
-        await submitQuizWithRetry(
-          sessionToken,
-          participantId,
-          answers,
-          autoSubmitted,
-          (statusMsg) => setSubmitError(statusMsg)
-        );
+    try {
+      await submitQuizWithRetry(token, pId, answersRef.current, autoSubmitted, (statusMsg) =>
+        setSubmitError(statusMsg)
+      );
 
-        setShowSubmitModal(false);
-        setView('leaderboard');
-      } catch (err: any) {
-        setSubmitError(err.message || 'Submission failed. Your answers are saved locally.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [sessionToken, participantId, answers, isSubmitting]
-  );
+      // The session is deliberately kept: a refresh after submitting should
+      // land back on the leaderboard with your own row highlighted, not on the
+      // name screen where you could register a second time.
+      hasSubmittedRef.current = true;
+      setShowSubmitModal(false);
+      setView('leaderboard');
+    } catch (err: any) {
+      setSubmitError(err.message || 'Submission failed. Your answers are saved locally.');
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  }, []);
 
   const handleDeadlineReached = useCallback(() => {
     executeSubmission(true);
   }, [executeSubmission]);
 
-  // Periodic polling for quiz status while actively taking quiz (detect host force-end)
+  // Poll for a host force-end while the quiz is being taken. executeSubmission
+  // is stable now, so this interval survives instead of being rebuilt on every
+  // answer click (which could drop the force-end signal entirely).
   useEffect(() => {
     if (view !== 'quiz' || !sessionToken) return;
 
-    let interval: NodeJS.Timeout;
     const checkQuizStatusOnServer = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/quiz/${QUIZ_ID}`, {
@@ -168,7 +236,7 @@ export function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.quizStatus === 'finished') {
-            console.log('[Quiz] Host has force-ended the quiz session. Auto-submitting answers.');
+            console.log('[Quiz] Session has ended. Auto-submitting answers.');
             executeSubmission(true);
           }
         }
@@ -177,9 +245,24 @@ export function App() {
       }
     };
 
-    interval = setInterval(checkQuizStatusOnServer, 3000);
+    const interval = setInterval(checkQuizStatusOnServer, 3000);
     return () => clearInterval(interval);
   }, [view, sessionToken, executeSubmission]);
+
+  const handleReturnToEntrance = () => {
+    clearSession(QUIZ_ID);
+    sessionRef.current = { token: '', participantId: '' };
+    answersRef.current = {};
+    hasSubmittedRef.current = false;
+    setView('start');
+    setAnswers({});
+    setDisplayName('');
+    setParticipantCode('');
+    setSessionToken('');
+    setParticipantId('');
+    setQuestions([]);
+    setCurrentIndex(0);
+  };
 
   const currentQuestion = questions[currentIndex];
 
@@ -211,6 +294,7 @@ export function App() {
         <>
           <RiddleHeader
             displayName={displayName}
+            participantCode={participantCode}
             deadlineIso={deadlineIso}
             durationMs={durationMs}
             totalQuestions={questions.length}
@@ -248,12 +332,8 @@ export function App() {
       {view === 'leaderboard' && (
         <Leaderboard
           quizId={QUIZ_ID}
-          userDisplayName={displayName}
-          onRetakeOrHome={() => {
-            setView('start');
-            setAnswers({});
-            setDisplayName('');
-          }}
+          userParticipantId={participantId}
+          onRetakeOrHome={handleReturnToEntrance}
         />
       )}
 
@@ -278,9 +358,17 @@ export function App() {
           answeredCount={Object.keys(answers).length}
           isSubmitting={isSubmitting}
           submitError={submitError}
+          isAutoSubmit={isAutoSubmit}
           onConfirmSubmit={() => executeSubmission(false)}
-          onCancel={() => setShowSubmitModal(false)}
-          onRetrySubmit={() => executeSubmission(false)}
+          onCancel={() => {
+            setShowSubmitModal(false);
+            setSubmitError(null);
+          }}
+          onRetrySubmit={() => executeSubmission(isAutoSubmit)}
+          onViewStandings={() => {
+            setShowSubmitModal(false);
+            setView('leaderboard');
+          }}
         />
       )}
     </div>

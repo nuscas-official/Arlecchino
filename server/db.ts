@@ -55,11 +55,31 @@ export interface Submission {
 }
 
 export interface LeaderboardEntry {
+  participantId: string;
   displayName: string;
+  code: string;
   score: number;
   elapsedMs: number;
   rank: number;
   submittedAt: string;
+  wasLate: boolean;
+}
+
+/**
+ * Short public tag for a participant. Display names are free text and collide
+ * constantly ("John", "John"); this never does, so it is what disambiguates
+ * two people on the leaderboard and in the CSV export.
+ */
+export function participantCode(participantId: string): string {
+  return participantId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
+}
+
+/**
+ * True for the empty 0-score row written by forceGradeAllUnsubmitted. It is a
+ * floor, not a real answer sheet, so a genuine submission may overwrite it.
+ */
+export function isPlaceholderSubmission(sub?: Submission): boolean {
+  return Boolean(sub && sub.auto_submitted && sub.answered_count === 0);
 }
 
 // Pseudo-random seeded generator for randomized question order
@@ -284,6 +304,24 @@ export const dbService = {
     throw new Error('[dbService.setQuizStatus] Database connection unavailable.');
   },
 
+  /**
+   * There is no scheduler behind this app, so expiry is resolved lazily off the
+   * polls that already run every 3s (participants + admin dashboard). Once
+   * duration + grace has elapsed the quiz closes itself and everyone still
+   * outstanding is graded, so the host does not have to be watching the clock.
+   * Waiting for the full grace period lets in-flight auto-submissions land
+   * first; those overwrite the placeholder row.
+   */
+  async maybeAutoFinish(quiz: Quiz, envDbUrl?: string): Promise<Quiz> {
+    if (quiz.status !== 'active' || !quiz.opens_at) return quiz;
+
+    const expiresAtMs = new Date(quiz.opens_at).getTime() + quiz.duration_ms + quiz.grace_ms;
+    if (Number.isNaN(expiresAtMs) || Date.now() < expiresAtMs) return quiz;
+
+    await this.setQuizStatus(quiz.id, 'finished', envDbUrl);
+    return { ...quiz, status: 'finished', closes_at: new Date().toISOString() };
+  },
+
   async forceGradeAllUnsubmitted(quizId: string, envDbUrl?: string): Promise<number> {
     const quiz = await this.getQuiz(quizId, envDbUrl);
     const durationMs = quiz ? quiz.duration_ms : 420000;
@@ -419,49 +457,41 @@ export const dbService = {
     }));
   },
 
-  async getOrCreateParticipant(quizId: string, displayName: string, envDbUrl?: string): Promise<Participant> {
+  /**
+   * Always mints a fresh participant. Display names are NOT identity — two
+   * people may legitimately enter the same one, and each must get their own
+   * row, token, question order and score. Rejoining an existing session is
+   * done by presenting the session token, never by matching on name.
+   */
+  async createParticipant(quizId: string, displayName: string, envDbUrl?: string): Promise<Participant> {
+    const id = generateUUID();
+    const sessionToken = generateToken();
+    const nowIso = new Date().toISOString();
+    const participant: Participant = {
+      id,
+      quiz_id: quizId,
+      display_name: displayName,
+      session_token: sessionToken,
+      started_at: nowIso,
+      created_at: nowIso,
+    };
+
     const sql = getNeonSql(envDbUrl);
     if (sql) {
-      const existing: any = await sql`
-        SELECT p.* FROM participant p
-        LEFT JOIN submission s ON p.id = s.participant_id
-        WHERE p.quiz_id = ${quizId} AND LOWER(p.display_name) = LOWER(${displayName}) AND s.participant_id IS NULL
-        LIMIT 1
-      `;
-      if (existing && existing.length > 0) return existing[0];
-
-      const id = generateUUID();
-      const sessionToken = generateToken();
-      const nowIso = new Date().toISOString();
-
       await sql`
         INSERT INTO participant (id, quiz_id, display_name, session_token, started_at, created_at)
         VALUES (${id}, ${quizId}, ${displayName}, ${sessionToken}, ${nowIso}, ${nowIso})
       `;
-
-      return { id, quiz_id: quizId, display_name: displayName, session_token: sessionToken, started_at: nowIso, created_at: nowIso };
+      return participant;
     }
 
     const db = getLocalSqlite();
     if (db) {
-      const existing = db.prepare(`
-        SELECT p.* FROM participant p
-        LEFT JOIN submission s ON p.id = s.participant_id
-        WHERE p.quiz_id = ? AND LOWER(p.display_name) = LOWER(?) AND s.participant_id IS NULL
-        LIMIT 1
-      `).get(quizId, displayName) as Participant | undefined;
-      if (existing) return existing;
-
-      const id = generateUUID();
-      const sessionToken = generateToken();
-      const nowIso = new Date().toISOString();
-
       db.prepare(`
         INSERT INTO participant (id, quiz_id, display_name, session_token, started_at, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(id, quizId, displayName, sessionToken, nowIso, nowIso);
-
-      return { id, quiz_id: quizId, display_name: displayName, session_token: sessionToken, started_at: nowIso, created_at: nowIso };
+      return participant;
     }
 
     throw new Error('Database connection unavailable.');
@@ -510,7 +540,7 @@ export const dbService = {
 
   async createSubmission(sub: Omit<Submission, 'submitted_at'>, envDbUrl?: string): Promise<{ submission: Submission; alreadySubmitted: boolean }> {
     const existing = await this.getSubmission(sub.participant_id, envDbUrl);
-    const isAutoEmpty = existing && existing.answered_count === 0 && existing.score === 0;
+    const isAutoEmpty = isPlaceholderSubmission(existing);
 
     if (existing && !isAutoEmpty) {
       return { submission: existing, alreadySubmitted: true };
@@ -566,7 +596,7 @@ export const dbService = {
     const sql = getNeonSql(envDbUrl);
     if (sql) {
       rows = await sql`
-        SELECT p.display_name as "displayName", s.score, s.elapsed_ms as "elapsedMs", s.submitted_at as "submittedAt"
+        SELECT p.id as "participantId", p.display_name as "displayName", s.score, s.elapsed_ms as "elapsedMs", s.was_late as "wasLate", s.submitted_at as "submittedAt"
         FROM submission s
         JOIN participant p ON s.participant_id = p.id
         WHERE p.quiz_id = ${quizId}
@@ -577,7 +607,7 @@ export const dbService = {
       const db = getLocalSqlite();
       if (db) {
         rows = db.prepare(`
-          SELECT p.display_name as displayName, s.score, s.elapsed_ms as elapsedMs, s.submitted_at as submittedAt
+          SELECT p.id as participantId, p.display_name as displayName, s.score, s.elapsed_ms as elapsedMs, s.was_late as wasLate, s.submitted_at as submittedAt
           FROM submission s
           JOIN participant p ON s.participant_id = p.id
           WHERE p.quiz_id = ?
@@ -588,11 +618,14 @@ export const dbService = {
     }
 
     return rows.map((r, index) => ({
+      participantId: r.participantId,
       displayName: r.displayName,
+      code: participantCode(r.participantId),
       score: r.score,
       elapsedMs: r.elapsedMs,
       rank: index + 1,
       submittedAt: r.submittedAt,
+      wasLate: Boolean(r.wasLate),
     }));
   },
 
@@ -648,7 +681,7 @@ export const dbService = {
     const sql = getNeonSql(envDbUrl);
     if (sql) {
       rows = await sql`
-        SELECT p.display_name, s.score, s.correct_count, s.answered_count, s.elapsed_ms, s.auto_submitted, s.was_late, s.submitted_at
+        SELECT p.id, p.display_name, p.started_at, s.score, s.correct_count, s.answered_count, s.elapsed_ms, s.auto_submitted, s.was_late, s.submitted_at
         FROM submission s
         JOIN participant p ON s.participant_id = p.id
         WHERE p.quiz_id = ${quizId}
@@ -658,7 +691,7 @@ export const dbService = {
       const db = getLocalSqlite();
       if (db) {
         rows = db.prepare(`
-          SELECT p.display_name, s.score, s.correct_count, s.answered_count, s.elapsed_ms, s.auto_submitted, s.was_late, s.submitted_at
+          SELECT p.id, p.display_name, p.started_at, s.score, s.correct_count, s.answered_count, s.elapsed_ms, s.auto_submitted, s.was_late, s.submitted_at
           FROM submission s
           JOIN participant p ON s.participant_id = p.id
           WHERE p.quiz_id = ?
@@ -667,11 +700,12 @@ export const dbService = {
       }
     }
 
-    const header = 'Display Name,Score,Correct Count,Answered Count,Elapsed (ms),Auto Submitted,Was Late,Submitted At\n';
+    const header =
+      'Code,Display Name,Participant ID,Joined At,Score,Correct Count,Answered Count,Elapsed (ms),Auto Submitted,Was Late,Submitted At\n';
     const csvRows = rows
       .map(
         (r) =>
-          `"${r.display_name.replace(/"/g, '""')}",${r.score},${r.correct_count},${r.answered_count},${r.elapsed_ms},${r.auto_submitted},${r.was_late},"${r.submitted_at}"`
+          `${participantCode(r.id)},"${r.display_name.replace(/"/g, '""')}",${r.id},"${r.started_at}",${r.score},${r.correct_count},${r.answered_count},${r.elapsed_ms},${r.auto_submitted},${r.was_late},"${r.submitted_at}"`
       )
       .join('\n');
 

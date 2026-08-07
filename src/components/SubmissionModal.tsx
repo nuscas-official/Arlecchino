@@ -6,9 +6,12 @@ interface SubmissionModalProps {
   answeredCount: number;
   isSubmitting: boolean;
   submitError?: string | null;
+  /** True when the timer expired or the host ended the session, not a manual submit. */
+  isAutoSubmit?: boolean;
   onConfirmSubmit: () => void;
   onCancel: () => void;
   onRetrySubmit: () => void;
+  onViewStandings: () => void;
 }
 
 export const SubmissionModal: React.FC<SubmissionModalProps> = ({
@@ -16,24 +19,30 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
   answeredCount,
   isSubmitting,
   submitError,
+  isAutoSubmit = false,
   onConfirmSubmit,
   onCancel,
   onRetrySubmit,
+  onViewStandings,
 }) => {
   const unansweredCount = totalQuestions - answeredCount;
 
   return (
     <div className="grid-modal-overlay">
       <div className="grid-modal" style={{ maxWidth: '480px' }}>
-        <p className="eyebrow eyebrow-crimson">Final Step</p>
+        <p className="eyebrow eyebrow-crimson">{isAutoSubmit ? "Time's Up" : 'Final Step'}</p>
         <h3 className="font-serif" style={{ fontSize: '1.7rem', margin: '0.15rem 0 0.5rem' }}>
-          Submit Quiz
+          {isAutoSubmit ? 'Trial Ended' : 'Submit Quiz'}
         </h3>
 
         {isSubmitting ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
             <Loader2 size={38} className="spin-icon" style={{ color: 'var(--crimson)' }} />
-            <p style={{ marginTop: '1rem', fontWeight: 600 }}>Submitting your answers to Arlecchino…</p>
+            <p style={{ marginTop: '1rem', fontWeight: 600 }}>
+              {isAutoSubmit
+                ? 'The trial has closed — submitting your answers automatically…'
+                : 'Submitting your answers to Arlecchino…'}
+            </p>
             <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', marginTop: '0.3rem' }}>
               Your progress is safely locked in memory. Please hold tight.
             </p>
@@ -52,8 +61,11 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button onClick={onCancel} className="btn-secondary">
-                Back to Questions
+              {/* An auto-submit has no "back" — the trial is over. Without an
+                  exit here a failed auto-submit left the participant stranded
+                  on a dead question screen. */}
+              <button onClick={isAutoSubmit ? onViewStandings : onCancel} className="btn-secondary">
+                {isAutoSubmit ? 'View Standings' : 'Back to Questions'}
               </button>
               <button onClick={onRetrySubmit} className="btn-gold">
                 <RefreshCw size={16} /> Retry Submission
