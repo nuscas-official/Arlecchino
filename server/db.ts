@@ -103,6 +103,24 @@ function getNeonSql(envDatabaseUrl?: string) {
   return neon(dbUrl);
 }
 
+let neonTablesCreated = false;
+async function ensureNeonTables(sql: any) {
+  if (neonTablesCreated) return;
+  try {
+    await sql`CREATE TABLE IF NOT EXISTS quiz (id TEXT PRIMARY KEY, title TEXT NOT NULL, duration_ms INTEGER NOT NULL, grace_ms INTEGER NOT NULL DEFAULT 60000, status TEXT NOT NULL DEFAULT 'locked', opens_at TEXT, closes_at TEXT);`;
+    try {
+      await sql`ALTER TABLE quiz ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'locked';`;
+    } catch (e) {}
+    await sql`CREATE TABLE IF NOT EXISTS question (id TEXT PRIMARY KEY, quiz_id TEXT NOT NULL REFERENCES quiz(id), position INTEGER NOT NULL, prompt TEXT NOT NULL, image_url TEXT, options JSONB NOT NULL, correct_key TEXT NOT NULL, points INTEGER NOT NULL DEFAULT 1, UNIQUE (quiz_id, position));`;
+    await sql`CREATE TABLE IF NOT EXISTS participant (id TEXT PRIMARY KEY, quiz_id TEXT NOT NULL REFERENCES quiz(id), display_name TEXT NOT NULL, session_token TEXT NOT NULL UNIQUE, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
+    await sql`CREATE TABLE IF NOT EXISTS submission (participant_id TEXT PRIMARY KEY REFERENCES participant(id), answers JSONB NOT NULL, score INTEGER NOT NULL, correct_count INTEGER NOT NULL, answered_count INTEGER NOT NULL, elapsed_ms INTEGER NOT NULL, auto_submitted BOOLEAN NOT NULL DEFAULT false, was_late BOOLEAN NOT NULL DEFAULT false, submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_submission_leaderboard ON submission (score DESC, elapsed_ms ASC, submitted_at ASC);`;
+    neonTablesCreated = true;
+  } catch (err) {
+    console.error('[ensureNeonTables ERROR]', err);
+  }
+}
+
 /**
  * SQLite Local Driver (Local Node dev environment fallback)
  */
@@ -174,7 +192,17 @@ export const dbService = {
   async getQuiz(quizId: string, envDbUrl?: string): Promise<Quiz | undefined> {
     const sql = getNeonSql(envDbUrl);
     if (sql) {
-      const rows: any = await sql`SELECT * FROM quiz WHERE id = ${quizId}`;
+      await ensureNeonTables(sql);
+      let rows: any = await sql`SELECT * FROM quiz WHERE id = ${quizId}`;
+      if (!rows || rows.length === 0) {
+        try {
+          const { seedArlecchinoQuiz } = await import('./seed.js');
+          await seedArlecchinoQuiz(envDbUrl);
+          rows = await sql`SELECT * FROM quiz WHERE id = ${quizId}`;
+        } catch (e) {
+          console.error('[getQuiz Auto-Seed ERROR]', e);
+        }
+      }
       if (!rows || rows.length === 0) return undefined;
       return { ...rows[0], status: rows[0].status || 'locked' };
     }

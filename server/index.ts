@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { dbService } from './db.js';
+import { seedArlecchinoQuiz } from './seed.js';
 
 const app = new Hono<{ Bindings: { DATABASE_URL?: string; ADMIN_SECRET?: string } }>();
 
@@ -204,7 +205,6 @@ app.post('/api/admin/seed', async (c) => {
   }
 
   try {
-    const { seedArlecchinoQuiz } = await import('./seed.js');
     await seedArlecchinoQuiz(c.env?.DATABASE_URL);
     leaderboardCache = null;
     return c.json({ status: 'ok', message: 'Database seeded successfully.' });
