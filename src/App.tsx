@@ -7,6 +7,7 @@ import { QuestionGridModal } from './components/QuestionGridModal';
 import { SubmissionModal } from './components/SubmissionModal';
 import { Leaderboard } from './components/Leaderboard';
 import { AdminDashboard } from './components/AdminDashboard';
+import { API_BASE_URL } from './config';
 import { prefetchBatch, prefetchUpcomingQuestions } from './services/imagePrefetcher';
 import {
   saveAnswersToDisk,
@@ -42,7 +43,7 @@ export function App() {
    * Fetch Quiz Questions (handles randomized order & status check)
    */
   const loadQuestions = useCallback(async (token: string, pId: string) => {
-    const qRes = await fetch(`/api/quiz/${QUIZ_ID}`, {
+    const qRes = await fetch(`${API_BASE_URL}/api/quiz/${QUIZ_ID}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -80,7 +81,7 @@ export function App() {
     setError(null);
 
     try {
-      const res = await fetch('/api/session/start', {
+      const res = await fetch(`${API_BASE_URL}/api/session/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quizId: QUIZ_ID, displayName: name }),

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Lock, Loader2 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface WaitingRoomProps {
   displayName: string;
@@ -19,7 +20,7 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({
 
     const checkQuizStatus = async () => {
       try {
-        const res = await fetch(`/api/quiz/${quizId}`, {
+        const res = await fetch(`${API_BASE_URL}/api/quiz/${quizId}`, {
           headers: { Authorization: `Bearer ${sessionToken}` },
         });
         if (res.ok) {

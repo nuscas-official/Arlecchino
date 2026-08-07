@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Play, Lock, CheckCircle2, Download, Users, RefreshCw, KeyRound } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface AdminDashboardProps {
   quizId: string;
@@ -24,7 +25,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
     if (!secretToTest) return false;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/stats/${quizId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/stats/${quizId}`, {
         headers: { 'X-Admin-Secret': secretToTest },
       });
       if (res.ok) {
@@ -74,7 +75,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
   const handleUpdateStatus = async (newStatus: 'locked' | 'active' | 'finished') => {
     setIsUpdating(true);
     try {
-      const res = await fetch('/api/admin/quiz/status', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/quiz/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
 
     setIsUpdating(true);
     try {
-      const res = await fetch('/api/admin/quiz/reset', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/quiz/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -360,7 +361,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                 Live Leaderboard (Top Participants)
               </h3>
               <a
-                href={`/api/admin/export/${quizId}?secret=${adminSecret}`}
+                href={`${API_BASE_URL}/api/admin/export/${quizId}?secret=${adminSecret}`}
                 download
                 className="btn-gold"
                 style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}

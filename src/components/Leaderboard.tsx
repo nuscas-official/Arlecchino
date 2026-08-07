@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Search, RefreshCw, Download } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface LeaderboardEntry {
   displayName: string;
@@ -28,7 +29,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   const fetchLeaderboard = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch(`/api/leaderboard/${quizId}`);
+      const res = await fetch(`${API_BASE_URL}/api/leaderboard/${quizId}`);
       if (res.ok) {
         const data = await res.json();
         setLeaderboard(data.leaderboard || []);
@@ -84,7 +85,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             <RefreshCw size={14} className={isRefreshing ? 'spin-icon' : ''} /> Refresh
           </button>
           <a
-            href={`/api/admin/export/${quizId}?secret=arlecchino-secret-key`}
+            href={`${API_BASE_URL}/api/admin/export/${quizId}?secret=arlecchino-secret-key`}
             download
             className="btn-secondary"
             style={{ textDecoration: 'none', padding: '0.5rem 0.8rem', fontSize: '0.85rem' }}

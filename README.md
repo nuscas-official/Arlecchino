@@ -64,17 +64,18 @@ For hosting a live event with ~200 simultaneous participants, use the following 
 ### 2. Backend API Hosting
 
 - **Cloudflare Workers** *(Recommended)*:
-  - Create `wrangler.toml`:
+  - Clean `wrangler.toml` (safe for Git):
     ```toml
     name = "arlecchino-api"
     main = "server/index.ts"
     compatibility_date = "2024-01-01"
-
-    [vars]
-    ADMIN_SECRET = "your-secure-admin-secret"
-    DATABASE_URL = "your-neon-postgres-http-url"
     ```
-  - Deploy with one command:
+  - Store secret variables securely in Cloudflare's encrypted vault:
+    ```bash
+    npx wrangler secret put DATABASE_URL
+    npx wrangler secret put ADMIN_SECRET
+    ```
+  - Deploy API:
     ```bash
     npx wrangler deploy
     ```

@@ -1,7 +1,4 @@
 name = "arlecchino-api"
 main = "server/index.ts"
-compatibility_date = "2024-01-01"
-
-[vars]
-ADMIN_SECRET = "arlecchino-secret-key"
-DATABASE_URL = "postgres://username:password@ep-cool-name-123456.us-east-2.aws.neon.tech/neondb?sslmode=require"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]

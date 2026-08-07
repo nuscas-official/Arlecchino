@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config';
+
 export interface SubmissionResult {
   score: number;
   correctCount: number;
@@ -60,7 +62,7 @@ export async function submitQuizWithRetry(
         onStatusUpdate(`Retrying submission (Attempt ${attempt}/${maxAttempts})...`);
       }
 
-      const res = await fetch('/api/submit', {
+      const res = await fetch(`${API_BASE_URL}/api/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

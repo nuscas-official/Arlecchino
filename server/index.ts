@@ -1,14 +1,9 @@
 import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { dbService } from './db.js';
-import { seedArlecchinoQuiz } from './seed.js';
 
-// Seed DB on start
-seedArlecchinoQuiz();
-
-const app = new Hono();
+const app = new Hono<{ Bindings: { DATABASE_URL?: string; ADMIN_SECRET?: string } }>();
 
 app.use('*', cors({
   origin: '*',
@@ -19,24 +14,21 @@ app.use('*', cors({
 let leaderboardCache: { quizId: string; timestamp: number; data: any[] } | null = null;
 const CACHE_TTL_MS = 3000;
 
-function getAuthenticatedParticipant(c: any) {
+async function getAuthenticatedParticipant(c: any) {
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
   const token = authHeader.substring(7);
-  return dbService.getParticipantByToken(token);
+  return dbService.getParticipantByToken(token, c.env?.DATABASE_URL);
 }
 
 function verifyAdminSecret(c: any) {
   const secret = c.req.header('X-Admin-Secret') || c.req.query('secret');
-  const expected = process.env.ADMIN_SECRET || 'arlecchino-secret-key';
+  const expected = c.env?.ADMIN_SECRET || (typeof process !== 'undefined' ? process.env.ADMIN_SECRET : undefined) || 'arlecchino-secret-key';
   return secret === expected;
 }
 
-/**
- * 1. POST /api/session/start
- */
 const startSchema = z.object({
   quizId: z.string().min(1),
   displayName: z.string().min(1).max(50).trim(),
@@ -47,12 +39,12 @@ app.post('/api/session/start', async (c) => {
     const body = await c.req.json();
     const parsed = startSchema.parse(body);
 
-    const quiz = dbService.getQuiz(parsed.quizId);
+    const quiz = await dbService.getQuiz(parsed.quizId, c.env?.DATABASE_URL);
     if (!quiz) {
       return c.json({ error: 'Quiz not found' }, 404);
     }
 
-    const participant = dbService.getOrCreateParticipant(quiz.id, parsed.displayName);
+    const participant = await dbService.getOrCreateParticipant(quiz.id, parsed.displayName, c.env?.DATABASE_URL);
     const startedAtTime = new Date(quiz.opens_at || participant.started_at).getTime();
     const deadline = new Date(startedAtTime + quiz.duration_ms).toISOString();
 
@@ -73,18 +65,14 @@ app.post('/api/session/start', async (c) => {
   }
 });
 
-/**
- * 2. GET /api/quiz/:quizId
- * Returns randomized questions per participant and enforces locked quiz status.
- */
-app.get('/api/quiz/:quizId', (c) => {
-  const participant = getAuthenticatedParticipant(c);
+app.get('/api/quiz/:quizId', async (c) => {
+  const participant = await getAuthenticatedParticipant(c);
   if (!participant) {
     return c.json({ error: 'Unauthorized session' }, 401);
   }
 
   const quizId = c.req.param('quizId');
-  const quiz = dbService.getQuiz(quizId);
+  const quiz = await dbService.getQuiz(quizId, c.env?.DATABASE_URL);
   if (!quiz) {
     return c.json({ error: 'Quiz not found' }, 404);
   }
@@ -96,12 +84,10 @@ app.get('/api/quiz/:quizId', (c) => {
     });
   }
 
-  // Calculate deadline from global quiz opens_at or participant start
   const startedAtTime = new Date(quiz.opens_at || participant.started_at).getTime();
   const deadlineIso = new Date(startedAtTime + quiz.duration_ms).toISOString();
 
-  // Deterministically randomized question list per participant
-  const questions = dbService.getPublicQuestionsShuffled(quizId, participant.id);
+  const questions = await dbService.getPublicQuestionsShuffled(quizId, participant.id, c.env?.DATABASE_URL);
 
   return c.json({
     quizStatus: quiz.status,
@@ -117,21 +103,18 @@ app.get('/api/quiz/:quizId', (c) => {
   });
 });
 
-/**
- * 3. POST /api/submit
- */
 const submitSchema = z.object({
   answers: z.record(z.string()),
   autoSubmitted: z.boolean().optional().default(false),
 });
 
 app.post('/api/submit', async (c) => {
-  const participant = getAuthenticatedParticipant(c);
+  const participant = await getAuthenticatedParticipant(c);
   if (!participant) {
     return c.json({ error: 'Unauthorized session' }, 401);
   }
 
-  const quiz = dbService.getQuiz(participant.quiz_id);
+  const quiz = await dbService.getQuiz(participant.quiz_id, c.env?.DATABASE_URL);
   if (!quiz) {
     return c.json({ error: 'Quiz not found' }, 404);
   }
@@ -155,7 +138,7 @@ app.post('/api/submit', async (c) => {
       elapsedMs = quiz.duration_ms;
     }
 
-    const internalQuestions = dbService.getInternalQuestions(participant.quiz_id);
+    const internalQuestions = await dbService.getInternalQuestions(participant.quiz_id, c.env?.DATABASE_URL);
     let score = 0;
     let correctCount = 0;
     let answeredCount = 0;
@@ -171,7 +154,7 @@ app.post('/api/submit', async (c) => {
       }
     }
 
-    const { submission, alreadySubmitted } = dbService.createSubmission({
+    const { submission, alreadySubmitted } = await dbService.createSubmission({
       participant_id: participant.id,
       answers: parsed.answers,
       score,
@@ -180,7 +163,7 @@ app.post('/api/submit', async (c) => {
       elapsed_ms: Math.max(0, elapsedMs),
       auto_submitted: parsed.autoSubmitted,
       was_late: wasLate,
-    });
+    }, c.env?.DATABASE_URL);
 
     leaderboardCache = null;
 
@@ -201,10 +184,7 @@ app.post('/api/submit', async (c) => {
   }
 });
 
-/**
- * 4. GET /api/leaderboard/:quizId
- */
-app.get('/api/leaderboard/:quizId', (c) => {
+app.get('/api/leaderboard/:quizId', async (c) => {
   const quizId = c.req.param('quizId');
   const now = Date.now();
 
@@ -212,17 +192,12 @@ app.get('/api/leaderboard/:quizId', (c) => {
     return c.json({ leaderboard: leaderboardCache.data, cached: true });
   }
 
-  const leaderboard = dbService.getLeaderboard(quizId, 100);
+  const leaderboard = await dbService.getLeaderboard(quizId, 100, c.env?.DATABASE_URL);
   leaderboardCache = { quizId, timestamp: now, data: leaderboard };
 
   return c.json({ leaderboard, cached: false });
 });
 
-/**
- * 5. ADMIN CONTROL ENDPOINTS
- */
-
-// Update Quiz Status (Unlock / Lock / Finish)
 app.post('/api/admin/quiz/status', async (c) => {
   if (!verifyAdminSecret(c)) {
     return c.json({ error: 'Unauthorized Admin' }, 403);
@@ -235,13 +210,12 @@ app.post('/api/admin/quiz/status', async (c) => {
     return c.json({ error: 'Invalid status' }, 400);
   }
 
-  dbService.setQuizStatus(quizId, status);
+  await dbService.setQuizStatus(quizId, status, c.env?.DATABASE_URL);
   leaderboardCache = null;
 
   return c.json({ status: 'ok', quizStatus: status });
 });
 
-// Reset Quiz Submissions and Participants (Clean Database)
 app.post('/api/admin/quiz/reset', async (c) => {
   if (!verifyAdminSecret(c)) {
     return c.json({ error: 'Unauthorized Admin' }, 403);
@@ -250,21 +224,20 @@ app.post('/api/admin/quiz/reset', async (c) => {
   const body = await c.req.json();
   const { quizId } = body;
 
-  dbService.resetQuizData(quizId);
+  await dbService.resetQuizData(quizId, c.env?.DATABASE_URL);
   leaderboardCache = null;
 
   return c.json({ status: 'ok', message: 'Quiz submissions and participant sessions reset to 0.' });
 });
 
-// Get Admin Dashboard Stats
-app.get('/api/admin/stats/:quizId', (c) => {
+app.get('/api/admin/stats/:quizId', async (c) => {
   if (!verifyAdminSecret(c)) {
     return c.json({ error: 'Unauthorized Admin' }, 403);
   }
 
   const quizId = c.req.param('quizId');
-  const stats = dbService.getAdminStats(quizId);
-  const leaderboard = dbService.getLeaderboard(quizId, 10);
+  const stats = await dbService.getAdminStats(quizId, c.env?.DATABASE_URL);
+  const leaderboard = await dbService.getLeaderboard(quizId, 10, c.env?.DATABASE_URL);
 
   return c.json({
     stats,
@@ -272,13 +245,13 @@ app.get('/api/admin/stats/:quizId', (c) => {
   });
 });
 
-app.get('/api/admin/export/:quizId', (c) => {
+app.get('/api/admin/export/:quizId', async (c) => {
   if (!verifyAdminSecret(c)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
   const quizId = c.req.param('quizId');
-  const csv = dbService.exportSubmissionsCSV(quizId);
+  const csv = await dbService.exportSubmissionsCSV(quizId, c.env?.DATABASE_URL);
 
   return new Response(csv, {
     headers: {
@@ -288,12 +261,19 @@ app.get('/api/admin/export/:quizId', (c) => {
   });
 });
 
-const port = Number(process.env.PORT) || 3001;
-console.log(`[Hono Server] Running on http://localhost:${port}`);
-
-serve({
-  fetch: app.fetch,
-  port,
-});
+// Local Node server launcher (ignored by Cloudflare Workers)
+if (typeof process !== 'undefined' && process.release?.name === 'node') {
+  import('@hono/node-server').then(({ serve }) => {
+    import('./seed.js').then(({ seedArlecchinoQuiz }) => {
+      seedArlecchinoQuiz();
+      const port = Number(process.env.PORT) || 3001;
+      console.log(`[Hono Server] Running on http://localhost:${port}`);
+      serve({
+        fetch: app.fetch,
+        port,
+      });
+    });
+  });
+}
 
 export default app;
