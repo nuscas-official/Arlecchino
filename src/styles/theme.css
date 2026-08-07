@@ -1,0 +1,367 @@
+/* Arlecchino: King of Riddles Theme System */
+:root {
+  --bg-dark: #09090e;
+  --bg-card: #13131c;
+  --bg-card-hover: #1b1b28;
+  --border-muted: #2a2a3c;
+  --border-gold: #c9a050;
+  --border-crimson: #8b1d24;
+  
+  --gold-primary: #d4af37;
+  --gold-hover: #f1c40f;
+  --gold-glow: rgba(212, 175, 55, 0.25);
+  
+  --crimson-primary: #a82828;
+  --crimson-bright: #e63946;
+  --crimson-glow: rgba(230, 57, 70, 0.3);
+  
+  --text-main: #f0f0f5;
+  --text-muted: #9a9ab0;
+  --text-gold: #e2c068;
+
+  --font-serif: 'Cinzel', Georgia, serif;
+  --font-sans: 'Outfit', 'Inter', system-ui, sans-serif;
+  
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 1px inset rgba(212, 175, 55, 0.2);
+  --shadow-gold: 0 0 20px rgba(212, 175, 55, 0.3);
+  --shadow-crimson: 0 0 20px rgba(230, 57, 70, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(139, 29, 36, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 85% 85%, rgba(212, 175, 55, 0.08) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: #232334;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-primary);
+}
+
+/* Typography */
+h1, h2, h3, .font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: 0.03em;
+}
+
+.text-gold {
+  color: var(--text-gold);
+}
+
+.text-crimson {
+  color: var(--crimson-bright);
+}
+
+/* Base Layout Container */
+.app-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Glassmorphism Card Base */
+.riddle-card {
+  background: rgba(19, 19, 28, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.riddle-card:hover {
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+/* Buttons */
+.btn-gold {
+  background: linear-gradient(135deg, #c9a050 0%, #a87f32 100%);
+  color: #0d0d12;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  padding: 0.85rem 1.75rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-gold);
+  transition: transform 0.15s ease, filter 0.2s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.5);
+}
+
+.btn-gold:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: rgba(42, 42, 60, 0.6);
+  color: var(--text-main);
+  border: 1px solid var(--border-muted);
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+  background: rgba(60, 60, 85, 0.8);
+  border-color: var(--gold-primary);
+  color: #fff;
+}
+
+/* Layout Stability for Images & Options */
+.media-container {
+  min-height: 240px;
+  max-height: 320px;
+  width: 100%;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: rgba(10, 10, 15, 0.6);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.3s ease;
+}
+
+/* Options Grid */
+.options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.option-button {
+  background: rgba(22, 22, 34, 0.7);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  color: var(--text-main);
+  width: 100%;
+  font-size: 1.05rem;
+  position: relative;
+}
+
+.option-button:hover {
+  background: rgba(35, 35, 52, 0.9);
+  border-color: rgba(212, 175, 55, 0.5);
+  transform: translateX(4px);
+}
+
+.option-button.selected {
+  background: linear-gradient(90deg, rgba(168, 40, 40, 0.25) 0%, rgba(212, 175, 55, 0.15) 100%);
+  border-color: var(--gold-primary);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+}
+
+.option-key-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-gold);
+  flex-shrink: 0;
+}
+
+.option-button.selected .option-key-badge {
+  background: var(--gold-primary);
+  color: #0d0d12;
+  border-color: var(--gold-hover);
+}
+
+/* Countdown Clock Styles */
+.timer-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(20, 20, 30, 0.9);
+  border: 1px solid var(--border-gold);
+  padding: 0.5rem 1rem;
+  border-radius: 30px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-gold);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+}
+
+.timer-badge.warning-5m {
+  border-color: #f39c12;
+  color: #f1c40f;
+  animation: pulse-orange 2s infinite;
+}
+
+.timer-badge.warning-1m {
+  border-color: var(--crimson-bright);
+  color: var(--crimson-bright);
+  box-shadow: var(--shadow-crimson);
+  animation: pulse-red 1s infinite;
+}
+
+@keyframes pulse-orange {
+  0%, 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(241, 196, 15, 0.7); }
+}
+
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 10px rgba(230, 57, 70, 0.4); }
+  50% { box-shadow: 0 0 25px rgba(230, 57, 70, 0.9); }
+}
+
+/* Grid Navigation Drawer */
+.grid-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.grid-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  max-width: 600px;
+  width: 100%;
+  padding: 1.75rem;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.q-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 0.6rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+  margin-top: 1rem;
+}
+
+.q-grid-item {
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid var(--border-muted);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.q-grid-item.answered {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: var(--gold-primary);
+  color: var(--text-gold);
+}
+
+.q-grid-item.current {
+  outline: 2px solid var(--crimson-bright);
+  outline-offset: 2px;
+}
+
+/* Leaderboard Table */
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+}
+
+.leaderboard-table th {
+  text-align: left;
+  padding: 0.85rem 1rem;
+  color: var(--text-gold);
+  font-family: var(--font-serif);
+  border-bottom: 2px solid var(--border-gold);
+}
+
+.leaderboard-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: 0.95rem;
+}
+
+.leaderboard-table tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rank-badge {
+  font-weight: 700;
+  font-family: var(--font-serif);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+}
+
+.rank-1 { color: #f1c40f; font-size: 1.2rem; }
+.rank-2 { color: #bdc3c7; font-size: 1.1rem; }
+.rank-3 { color: #e67e22; font-size: 1.1rem; }
