@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, Play, Lock, CheckCircle2, Download, Users, RefreshCw, KeyRound } from 'lucide-react';
+import { ShieldCheck, Play, Lock, CheckCircle2, Download, Users, RefreshCw, KeyRound, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminDashboardProps {
@@ -127,69 +127,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
   if (!isAuthenticated) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '75vh' }}>
-        <div className="riddle-card" style={{ maxWidth: '440px', width: '100%', textAlign: 'center' }}>
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              background: 'rgba(212, 175, 55, 0.15)',
-              border: '2px solid var(--border-gold)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.25rem auto',
-              boxShadow: 'var(--shadow-gold)',
-            }}
-          >
-            <ShieldCheck size={32} className="text-gold" />
+        <div className="riddle-card card-featured" style={{ maxWidth: '460px', width: '100%' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div className="crest">
+              <ShieldCheck size={30} />
+            </div>
+            <p className="eyebrow eyebrow-crimson">Restricted</p>
+            <h2 className="font-serif" style={{ fontSize: '1.9rem', margin: '0.2rem 0 0.5rem' }}>
+              Host Authentication
+            </h2>
+            <p style={{ fontSize: '0.9rem', color: 'var(--ink-muted)', marginBottom: '1.5rem' }}>
+              Enter the Admin Secret Key to access host controls, quiz unlocking, and live rankings.
+            </p>
           </div>
 
-          <h2 className="font-serif text-gold" style={{ fontSize: '1.6rem', marginBottom: '0.4rem' }}>
-            Host Authentication
-          </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            Enter the Admin Secret Key to access host controls, quiz unlocking, and live rankings.
-          </p>
-
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ textAlign: 'left' }}>
-              <label
-                htmlFor="adminSecretInput"
-                style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-gold)', marginBottom: '0.4rem', fontWeight: 600 }}
-              >
-                Admin Secret Key:
+            <div>
+              <label htmlFor="adminSecretInput" className="field-label">
+                Admin Secret Key
               </label>
-              <div style={{ position: 'relative' }}>
-                <KeyRound
-                  size={18}
-                  style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-                />
+              <div className="field-wrap">
+                <KeyRound size={18} className="field-icon" />
                 <input
                   id="adminSecretInput"
+                  className="text-input"
                   type="password"
                   required
-                  placeholder="Enter secret key..."
+                  placeholder="Enter secret key…"
                   value={secretInput}
                   onChange={(e) => setSecretInput(e.target.value)}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(10, 10, 15, 0.8)',
-                    border: '1px solid var(--border-muted)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '0.85rem 1rem 0.85rem 2.8rem',
-                    color: '#fff',
-                    fontSize: '1rem',
-                    outline: 'none',
-                  }}
                 />
               </div>
             </div>
 
             {authError && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--crimson-bright)', textAlign: 'left' }}>
-                ⚠️ {authError}
-              </p>
+              <div className="callout callout-error" role="alert">
+                <span>{authError}</span>
+              </div>
             )}
 
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
@@ -197,7 +171,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                 Cancel
               </button>
               <button type="submit" className="btn-gold" disabled={loading} style={{ flex: 1.5 }}>
-                {loading ? 'Verifying...' : 'Unlock Host Panel 🔑'}
+                {loading ? 'Verifying…' : 'Unlock Host Panel'}
               </button>
             </div>
           </form>
@@ -208,16 +182,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
 
   // 2. Authenticated Host Control Dashboard
   return (
-    <div className="riddle-card" style={{ maxWidth: '900px', margin: '0 auto', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="riddle-card card-featured" style={{ maxWidth: '920px', margin: '0 auto', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <ShieldCheck size={28} className="text-gold" />
-            <h2 className="font-serif text-gold" style={{ fontSize: '1.6rem' }}>
-              Host Control Panel
+          <p className="eyebrow eyebrow-crimson">Host Only</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.2rem 0' }}>
+            <ShieldCheck size={26} style={{ color: 'var(--gold-deep)' }} />
+            <h2 className="font-serif" style={{ fontSize: '2rem' }}>
+              Control Panel
             </h2>
           </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--ink-muted)' }}>
             Manage quiz status, unlock riddles, and monitor real-time participant progress.
           </p>
         </div>
@@ -231,7 +206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
             className="btn-secondary"
             style={{ fontSize: '0.8rem' }}
           >
-            Lock Panel 🔒
+            <Lock size={14} /> Lock Panel
           </button>
           <button onClick={onExitAdmin} className="btn-secondary" style={{ fontSize: '0.8rem' }}>
             Exit Admin
@@ -246,8 +221,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
           {/* Main Status & Control Card */}
           <div
             style={{
-              background: 'rgba(20, 20, 32, 0.9)',
-              border: '1px solid var(--border-gold)',
+              background: 'var(--parchment)',
+              border: '1px solid var(--gold)',
               borderRadius: 'var(--radius-md)',
               padding: '1.5rem',
               marginTop: '1.5rem',
@@ -255,23 +230,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Current Quiz Status
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.3rem' }}>
+                <span className="eyebrow">Current Quiz Status</span>
+                <div>
                   {stats?.status === 'locked' && (
-                    <span style={{ fontSize: '1.2rem', color: '#f1c40f', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Lock size={20} /> 🔒 LOCKED (Waiting for Host)
+                    <span className="status-pill status-locked">
+                      <Lock size={15} /> Locked — waiting for host
                     </span>
                   )}
                   {stats?.status === 'active' && (
-                    <span style={{ fontSize: '1.2rem', color: '#2ecc71', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Play size={20} /> 🟢 ACTIVE (Riddles Unlocked & Timer Ticking)
+                    <span className="status-pill status-active">
+                      <Play size={15} /> Active — timer ticking
                     </span>
                   )}
                   {stats?.status === 'finished' && (
-                    <span style={{ fontSize: '1.2rem', color: 'var(--crimson-bright)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <CheckCircle2 size={20} /> 🏁 FINISHED (Final Results Sealed)
+                    <span className="status-pill status-finished">
+                      <CheckCircle2 size={15} /> Finished — results sealed
                     </span>
                   )}
                 </div>
@@ -286,17 +259,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                     className="btn-gold"
                     style={{ padding: '0.85rem 1.5rem', fontSize: '1.05rem' }}
                   >
-                    <Play size={18} /> Unlock & Start Quiz Now!
+                    <Play size={18} /> Unlock &amp; Start Quiz
                   </button>
                 )}
                 {stats?.status === 'active' && (
                   <button
                     onClick={() => handleUpdateStatus('finished')}
                     disabled={isUpdating}
-                    className="btn-secondary"
-                    style={{ border: '1px solid var(--crimson-bright)', color: 'var(--crimson-bright)' }}
+                    className="btn-secondary btn-danger"
                   >
-                    <Lock size={16} /> Force End & Grade All Answers
+                    <Lock size={16} /> Force End &amp; Grade All
                   </button>
                 )}
                 {stats?.status === 'finished' && (
@@ -312,44 +284,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                 <button
                   onClick={handleResetDatabase}
                   disabled={isUpdating}
-                  className="btn-secondary"
-                  style={{ border: '1px solid #e74c3c', color: '#e74c3c' }}
+                  className="btn-secondary btn-danger"
                   title="Wipe all test submissions and participants"
                 >
-                  🧹 Clear Submissions & Reset DB
+                  <Trash2 size={16} /> Clear &amp; Reset DB
                 </button>
               </div>
             </div>
 
             {/* Quick Metrics Bar */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '1rem',
-                marginTop: '1.5rem',
-                paddingTop: '1.25rem',
-                borderTop: '1px solid var(--border-muted)',
-              }}
-            >
-              <div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Registered Participants</span>
-                <h3 className="text-gold" style={{ fontSize: '1.5rem', marginTop: '0.2rem' }}>
-                  <Users size={20} style={{ display: 'inline', marginRight: '0.4rem' }} />
+            <div className="stat-grid">
+              <div className="stat-tile">
+                <span className="eyebrow">Registered</span>
+                <div className="stat-value">
+                  <Users size={20} style={{ color: 'var(--gold-deep)' }} />
                   {stats?.participantCount || 0}
-                </h3>
+                </div>
               </div>
-              <div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Completed Submissions</span>
-                <h3 style={{ fontSize: '1.5rem', color: '#2ecc71', marginTop: '0.2rem' }}>
-                  {stats?.submissionCount || 0} / {stats?.participantCount || 0}
-                </h3>
+              <div className="stat-tile">
+                <span className="eyebrow">Submitted</span>
+                <div className="stat-value" style={{ color: 'var(--success)' }}>
+                  {stats?.submissionCount || 0}
+                  <span style={{ color: 'var(--ink-faint)' }}>/ {stats?.participantCount || 0}</span>
+                </div>
               </div>
-              <div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Duration Limit</span>
-                <h3 style={{ fontSize: '1.5rem', color: '#fff', marginTop: '0.2rem' }}>
-                  {Math.floor((stats?.durationMs || 600000) / 60000)} Minutes
-                </h3>
+              <div className="stat-tile">
+                <span className="eyebrow">Duration Limit</span>
+                <div className="stat-value">
+                  {Math.floor((stats?.durationMs || 600000) / 60000)}
+                  <span style={{ fontSize: '0.9rem', color: 'var(--ink-muted)' }}>min</span>
+                </div>
               </div>
             </div>
           </div>
@@ -357,21 +321,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
           {/* Real-time Top Participants & Export */}
           <div style={{ marginTop: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 className="font-serif text-gold" style={{ fontSize: '1.2rem' }}>
-                Live Leaderboard (Top Participants)
-              </h3>
+              <div>
+                <p className="eyebrow eyebrow-crimson">Live</p>
+                <h3 className="font-serif" style={{ fontSize: '1.5rem' }}>
+                  Top Participants
+                </h3>
+              </div>
               <a
                 href={`${API_BASE_URL}/api/admin/export/${quizId}?secret=${adminSecret}`}
                 download
-                className="btn-gold"
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                className="btn-gold btn-brass"
+                style={{ padding: '0.5rem 0.9rem', fontSize: '0.85rem' }}
               >
-                <Download size={14} /> Export CSV Report
+                <Download size={14} /> Export CSV
               </a>
             </div>
 
             {topParticipants.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              <p style={{ color: 'var(--ink-muted)', fontSize: '0.9rem' }}>
                 No submissions received yet. Once participants submit, live scores will populate here.
               </p>
             ) : (
@@ -387,10 +354,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ quizId, onExitAd
                 <tbody>
                   {topParticipants.map((entry) => (
                     <tr key={entry.displayName + entry.rank}>
-                      <td>#{entry.rank}</td>
-                      <td style={{ color: '#fff', fontWeight: 600 }}>{entry.displayName}</td>
-                      <td style={{ color: 'var(--text-gold)', fontWeight: 700 }}>{entry.score} pts</td>
-                      <td style={{ fontFamily: 'monospace' }}>{Math.floor(entry.elapsedMs / 1000)}s</td>
+                      <td>
+                        <span className="rank-badge">{String(entry.rank).padStart(2, '0')}</span>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{entry.displayName}</td>
+                      <td style={{ fontWeight: 700 }}>{entry.score} pts</td>
+                      <td className="mono-num">{Math.floor(entry.elapsedMs / 1000)}s</td>
                     </tr>
                   ))}
                 </tbody>

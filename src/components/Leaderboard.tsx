@@ -61,16 +61,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   };
 
   return (
-    <div className="riddle-card" style={{ maxWidth: '850px', margin: '0 auto', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="riddle-card card-featured" style={{ maxWidth: '880px', margin: '0 auto', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <Trophy size={28} className="text-gold" />
-            <h2 className="font-serif text-gold" style={{ fontSize: '1.6rem' }}>
-              Hall of Riddles — Leaderboard
+          <p className="eyebrow eyebrow-crimson">Final Standings</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.2rem 0' }}>
+            <Trophy size={26} style={{ color: 'var(--gold-rich)' }} />
+            <h2 className="font-serif" style={{ fontSize: '2rem' }}>
+              Hall of Riddles
             </h2>
           </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--ink-muted)' }}>
             Ranked by score (descending), then elapsed time (ascending).
           </p>
         </div>
@@ -96,36 +97,24 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
       </div>
 
       {/* Search Input */}
-      <div style={{ marginTop: '1.25rem', position: 'relative' }}>
-        <Search
-          size={18}
-          style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-        />
+      <div className="field-wrap" style={{ marginTop: '1.25rem' }}>
+        <Search size={18} className="field-icon" />
         <input
+          className="text-input"
           type="text"
-          placeholder="Search participant name..."
+          placeholder="Search participant name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{
-            width: '100%',
-            background: 'rgba(10, 10, 15, 0.7)',
-            border: '1px solid var(--border-muted)',
-            borderRadius: 'var(--radius-md)',
-            padding: '0.75rem 1rem 0.75rem 2.8rem',
-            color: '#fff',
-            fontSize: '0.95rem',
-            outline: 'none',
-          }}
         />
       </div>
 
       {/* Table */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
-          Loading leaderboard standings...
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--ink-muted)' }}>
+          Loading leaderboard standings…
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--ink-muted)' }}>
           No participant submissions found.
         </div>
       ) : (
@@ -145,36 +134,31 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                 const isCurrentUser =
                   userDisplayName && entry.displayName.toLowerCase() === userDisplayName.toLowerCase();
 
-                let rankBadge = `#${entry.rank}`;
+                let rankBadge = `${entry.rank}`.padStart(2, '0');
                 let rankClass = '';
                 if (entry.rank === 1) {
-                  rankBadge = '🥇 1st';
+                  rankBadge = '01 · 1ST';
                   rankClass = 'rank-1';
                 } else if (entry.rank === 2) {
-                  rankBadge = '🥈 2nd';
+                  rankBadge = '02 · 2ND';
                   rankClass = 'rank-2';
                 } else if (entry.rank === 3) {
-                  rankBadge = '🥉 3rd';
+                  rankBadge = '03 · 3RD';
                   rankClass = 'rank-3';
                 }
 
                 return (
-                  <tr
-                    key={entry.displayName + entry.rank}
-                    style={{
-                      background: isCurrentUser ? 'rgba(212, 175, 55, 0.15)' : undefined,
-                      fontWeight: isCurrentUser ? 700 : undefined,
-                    }}
-                  >
+                  <tr key={entry.displayName + entry.rank} className={isCurrentUser ? 'is-you' : ''}>
                     <td>
                       <span className={`rank-badge ${rankClass}`}>{rankBadge}</span>
                     </td>
-                    <td style={{ color: isCurrentUser ? 'var(--text-gold)' : '#fff' }}>
-                      {entry.displayName} {isCurrentUser && ' (You)'}
+                    <td style={{ color: isCurrentUser ? 'var(--crimson)' : undefined }}>
+                      {entry.displayName}
+                      {isCurrentUser && ' (You)'}
                     </td>
-                    <td style={{ fontWeight: 700, color: 'var(--text-gold)' }}>{entry.score} pts</td>
-                    <td style={{ fontFamily: 'monospace' }}>{formatElapsed(entry.elapsedMs)}</td>
-                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <td style={{ fontWeight: 700 }}>{entry.score} pts</td>
+                    <td className="mono-num">{formatElapsed(entry.elapsedMs)}</td>
+                    <td className="mono-num" style={{ color: 'var(--ink-muted)' }}>
                       {new Date(entry.submittedAt).toLocaleTimeString()}
                     </td>
                   </tr>
@@ -186,16 +170,15 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
       )}
 
       {onRetakeOrHome && (
-        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <button onClick={onRetakeOrHome} className="btn-gold">
-            Return to Entrance 🏰
-          </button>
-        </div>
+        <>
+          <hr className="rule-gold" style={{ margin: '2rem 0 1.25rem' }} />
+          <div style={{ textAlign: 'center' }}>
+            <button onClick={onRetakeOrHome} className="btn-gold">
+              Return to Entrance
+            </button>
+          </div>
+        </>
       )}
-
-      <style>{`
-        .spin-icon { animation: spin 1s linear infinite; }
-      `}</style>
     </div>
   );
 };

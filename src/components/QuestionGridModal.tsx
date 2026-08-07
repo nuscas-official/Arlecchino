@@ -26,20 +26,24 @@ export const QuestionGridModal: React.FC<QuestionGridModalProps> = ({
       <div className="grid-modal" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h3 className="font-serif text-gold" style={{ fontSize: '1.25rem' }}>
+            <p className="eyebrow eyebrow-crimson">Navigation</p>
+            <h3 className="font-serif" style={{ fontSize: '1.6rem', margin: '0.15rem 0' }}>
               Riddle Map
             </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {answeredCount} of {questions.length} answered
+            <p className="mono-num">
+              {answeredCount} / {questions.length} answered
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="btn-secondary"
-            style={{ padding: '0.4rem', borderRadius: '50%' }}
-          >
+          <button onClick={onClose} className="btn-secondary" style={{ padding: '0.5rem' }} aria-label="Close">
             <X size={18} />
           </button>
+        </div>
+
+        <div className="progress-track" style={{ marginTop: '1rem' }}>
+          <div
+            className="progress-fill"
+            style={{ width: `${questions.length ? (answeredCount / questions.length) * 100 : 0}%` }}
+          />
         </div>
 
         <div className="q-grid">

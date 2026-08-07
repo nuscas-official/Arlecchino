@@ -160,14 +160,10 @@ export function App() {
   return (
     <div className="app-container">
       {/* Top Bar for Admin Switch */}
-      {view !== 'admin' && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-          <button
-            onClick={() => setView('admin')}
-            className="btn-secondary"
-            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', border: '1px solid var(--border-gold)' }}
-          >
-            <ShieldCheck size={14} className="text-gold" /> Host Dashboard
+      {view !== 'admin' && view !== 'quiz' && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+          <button onClick={() => setView('admin')} className="btn-ghost">
+            <ShieldCheck size={14} /> Host Dashboard
           </button>
         </div>
       )}

@@ -64,18 +64,18 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
         className={`timer-badge ${isWarning1m ? 'warning-1m' : isWarning5m ? 'warning-5m' : ''}`}
         aria-label={`Time remaining: ${formattedTime}`}
       >
-        {isWarning1m ? <AlertTriangle size={18} className="text-crimson" /> : <Clock size={18} />}
+        {isWarning1m ? <AlertTriangle size={18} /> : <Clock size={18} />}
         <span>{formattedTime}</span>
       </div>
 
       {isWarning5m && (
-        <span style={{ fontSize: '0.75rem', color: '#f1c40f', fontWeight: 600 }}>
-          ⚠️ 5 minutes remaining!
+        <span className="eyebrow" style={{ color: 'var(--gold-light)' }}>
+          5 minutes remaining
         </span>
       )}
       {isWarning1m && (
-        <span style={{ fontSize: '0.75rem', color: '#e63946', fontWeight: 700 }}>
-          🚨 1 minute remaining — Auto-submitting soon!
+        <span className="eyebrow" style={{ color: '#ff8a94' }}>
+          1 minute — auto-submitting soon
         </span>
       )}
     </div>

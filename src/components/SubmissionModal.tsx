@@ -25,38 +25,27 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
   return (
     <div className="grid-modal-overlay">
       <div className="grid-modal" style={{ maxWidth: '480px' }}>
-        <h3 className="font-serif text-gold" style={{ fontSize: '1.4rem', marginBottom: '0.5rem' }}>
+        <p className="eyebrow eyebrow-crimson">Final Step</p>
+        <h3 className="font-serif" style={{ fontSize: '1.7rem', margin: '0.15rem 0 0.5rem' }}>
           Submit Quiz
         </h3>
 
         {isSubmitting ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-            <Loader2 size={40} className="text-gold" style={{ animation: 'spin 1s linear infinite' }} />
-            <p style={{ marginTop: '1rem', fontWeight: 600 }}>Submitting your answers to Arlecchino...</p>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+            <Loader2 size={38} className="spin-icon" style={{ color: 'var(--crimson)' }} />
+            <p style={{ marginTop: '1rem', fontWeight: 600 }}>Submitting your answers to Arlecchino…</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', marginTop: '0.3rem' }}>
               Your progress is safely locked in memory. Please hold tight.
             </p>
           </div>
         ) : submitError ? (
           <div style={{ padding: '1rem 0' }}>
-            <div
-              style={{
-                background: 'rgba(230, 57, 70, 0.15)',
-                border: '1px solid var(--crimson-bright)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1rem',
-                display: 'flex',
-                gap: '0.75rem',
-                alignItems: 'flex-start',
-              }}
-            >
-              <AlertCircle size={24} className="text-crimson" style={{ flexShrink: 0 }} />
+            <div className="callout callout-error">
+              <AlertCircle size={22} style={{ flexShrink: 0 }} />
               <div>
-                <strong style={{ color: '#fff' }}>Submission issue</strong>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginTop: '0.2rem' }}>
-                  {submitError}
-                </p>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                <strong>Submission issue</strong>
+                <p style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>{submitError}</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--ink-muted)', marginTop: '0.4rem' }}>
                   Your answers remain safely saved in your browser storage. You will not lose your work.
                 </p>
               </div>
@@ -73,41 +62,22 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           </div>
         ) : (
           <div>
-            <p style={{ fontSize: '0.95rem', color: 'var(--text-main)', margin: '1rem 0' }}>
+            <p style={{ fontSize: '0.95rem', color: 'var(--ink-mid)', margin: '1rem 0' }}>
               Are you ready to seal your fate and hand your answers to the King of Riddles?
             </p>
 
             {unansweredCount > 0 ? (
-              <div
-                style={{
-                  background: 'rgba(241, 196, 15, 0.1)',
-                  border: '1px solid rgba(241, 196, 15, 0.3)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '0.85rem 1rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.85rem',
-                  color: '#f1c40f',
-                }}
-              >
-                ⚠️ You have <strong>{unansweredCount} unanswered riddle(s)</strong> remaining out of {totalQuestions}. Unanswered riddles will yield 0 points.
+              <div className="callout callout-warning" style={{ marginBottom: '1.25rem' }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>
+                  You have <strong>{unansweredCount} unanswered riddle(s)</strong> out of {totalQuestions}.
+                  Unanswered riddles yield 0 points.
+                </span>
               </div>
             ) : (
-              <div
-                style={{
-                  background: 'rgba(46, 204, 113, 0.1)',
-                  border: '1px solid rgba(46, 204, 113, 0.3)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '0.85rem 1rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.85rem',
-                  color: '#2ecc71',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-              >
-                <CheckCircle2 size={18} />
-                <span>All {totalQuestions} riddles answered! Perfect completion.</span>
+              <div className="callout callout-success" style={{ marginBottom: '1.25rem' }}>
+                <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+                <span>All {totalQuestions} riddles answered — perfect completion.</span>
               </div>
             )}
 
@@ -116,19 +86,12 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
                 Review Riddles
               </button>
               <button onClick={onConfirmSubmit} className="btn-gold">
-                Submit Quiz 🗝️
+                Submit Quiz
               </button>
             </div>
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };
