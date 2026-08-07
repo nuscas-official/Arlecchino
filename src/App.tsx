@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StartScreen } from './components/StartScreen';
+import { WaitingRoom } from './components/WaitingRoom';
 import { RiddleHeader } from './components/RiddleHeader';
 import { QuestionCard, QuestionPublic } from './components/QuestionCard';
 import { QuestionGridModal } from './components/QuestionGridModal';
 import { SubmissionModal } from './components/SubmissionModal';
 import { Leaderboard } from './components/Leaderboard';
+import { AdminDashboard } from './components/AdminDashboard';
 import { prefetchBatch, prefetchUpcomingQuestions } from './services/imagePrefetcher';
 import {
   saveAnswersToDisk,
@@ -12,16 +14,17 @@ import {
   submitQuizWithRetry,
   SubmissionResult,
 } from './services/submissionManager';
+import { ShieldCheck } from 'lucide-react';
 
 const QUIZ_ID = 'arlecchino-riddles-1';
 
 export function App() {
-  const [view, setView] = useState<'start' | 'quiz' | 'leaderboard'>('start');
+  const [view, setView] = useState<'start' | 'waiting' | 'quiz' | 'leaderboard' | 'admin'>('start');
   const [displayName, setDisplayName] = useState('');
   const [sessionToken, setSessionToken] = useState('');
   const [participantId, setParticipantId] = useState('');
   const [deadlineIso, setDeadlineIso] = useState('');
-  const [durationMs, setDurationMs] = useState(2400000);
+  const [durationMs, setDurationMs] = useState(600000);
 
   const [questions, setQuestions] = useState<QuestionPublic[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -34,17 +37,49 @@ export function App() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
 
   /**
-   * 1. Start Session & Pre-warm Images
+   * Fetch Quiz Questions (handles randomized order & status check)
+   */
+  const loadQuestions = useCallback(async (token: string, pId: string) => {
+    const qRes = await fetch(`/api/quiz/${QUIZ_ID}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!qRes.ok) {
+      throw new Error('Failed to fetch quiz questions.');
+    }
+
+    const qData = await qRes.json();
+
+    if (qData.quizStatus === 'locked') {
+      setView('waiting');
+      return false;
+    }
+
+    const qList: QuestionPublic[] = qData.questions || [];
+    setQuestions(qList);
+    setDeadlineIso(qData.quiz?.deadlineIso || new Date(Date.now() + 600000).toISOString());
+
+    // Pre-warm initial 8 images
+    const initialImages = qList
+      .slice(0, 8)
+      .map((q) => q.imageUrl)
+      .filter(Boolean);
+    prefetchBatch(initialImages).catch(() => {});
+
+    setView('quiz');
+    return true;
+  }, []);
+
+  /**
+   * Start Participant Session
    */
   const handleStartSession = async (name: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // API call to /api/session/start
       const res = await fetch('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,34 +94,13 @@ export function App() {
       setDisplayName(name);
       setSessionToken(data.sessionToken);
       setParticipantId(data.participantId);
-      setDeadlineIso(data.deadline);
       setDurationMs(data.durationMs);
 
-      // Rehydrate local storage answers if recovering session
+      // Rehydrate local storage draft answers
       const savedAnswers = loadAnswersFromDisk(data.participantId);
       setAnswers(savedAnswers);
 
-      // Fetch questions with token
-      const qRes = await fetch(`/api/quiz/${QUIZ_ID}`, {
-        headers: { Authorization: `Bearer ${data.sessionToken}` },
-      });
-
-      if (!qRes.ok) {
-        throw new Error('Failed to fetch quiz questions.');
-      }
-
-      const qData = await qRes.json();
-      const qList: QuestionPublic[] = qData.questions || [];
-      setQuestions(qList);
-
-      // PREWARM CACHE: Prefetch first 5-8 images before starting clock view!
-      const initialImages = qList
-        .slice(0, 8)
-        .map((q) => q.imageUrl)
-        .filter(Boolean);
-      prefetchBatch(initialImages).catch(() => {});
-
-      setView('quiz');
+      await loadQuestions(data.sessionToken, data.participantId);
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
@@ -94,26 +108,16 @@ export function App() {
     }
   };
 
-  /**
-   * 2. Select Option & Trigger Rolling Lookahead Prefetch
-   */
   const handleSelectOption = (optionKey: string) => {
     const currentQ = questions[currentIndex];
     if (!currentQ || !participantId) return;
 
     const newAnswers = { ...answers, [currentQ.id]: optionKey };
     setAnswers(newAnswers);
-
-    // Save to localStorage immediately
     saveAnswersToDisk(participantId, newAnswers);
-
-    // Rolling lookahead prefetch for upcoming 4 image-bearing questions
     prefetchUpcomingQuestions(questions, currentIndex, 4);
   };
 
-  /**
-   * 3. Submit Quiz Execution
-   */
   const executeSubmission = useCallback(
     async (autoSubmitted = false) => {
       if (!sessionToken || !participantId || isSubmitting) return;
@@ -121,15 +125,13 @@ export function App() {
       setIsSubmitting(true);
       setSubmitError(null);
 
-      // Add random jitter (0-15s) for auto-submitted deadline spike flattening if specified
       if (autoSubmitted) {
-        const jitterMs = Math.floor(Math.random() * 15000);
-        console.log(`[Auto-Submit] Applying ${jitterMs}ms random jitter to flatten backend load spike.`);
+        const jitterMs = Math.floor(Math.random() * 10000);
         await new Promise((r) => setTimeout(r, jitterMs));
       }
 
       try {
-        const result = await submitQuizWithRetry(
+        await submitQuizWithRetry(
           sessionToken,
           participantId,
           answers,
@@ -137,7 +139,6 @@ export function App() {
           (statusMsg) => setSubmitError(statusMsg)
         );
 
-        setSubmissionResult(result);
         setShowSubmitModal(false);
         setView('leaderboard');
       } catch (err: any) {
@@ -149,11 +150,7 @@ export function App() {
     [sessionToken, participantId, answers, isSubmitting]
   );
 
-  /**
-   * 4. Deadline Reached Handler (Auto-submit)
-   */
   const handleDeadlineReached = useCallback(() => {
-    console.warn('[Deadline Expiry] Wall-clock timer reached 0! Triggering auto-submit with jitter...');
     executeSubmission(true);
   }, [executeSubmission]);
 
@@ -161,8 +158,30 @@ export function App() {
 
   return (
     <div className="app-container">
+      {/* Top Bar for Admin Switch */}
+      {view !== 'admin' && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+          <button
+            onClick={() => setView('admin')}
+            className="btn-secondary"
+            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', border: '1px solid var(--border-gold)' }}
+          >
+            <ShieldCheck size={14} className="text-gold" /> Host Dashboard
+          </button>
+        </div>
+      )}
+
       {view === 'start' && (
         <StartScreen onStartQuiz={handleStartSession} isLoading={isLoading} error={error} />
+      )}
+
+      {view === 'waiting' && (
+        <WaitingRoom
+          displayName={displayName}
+          quizId={QUIZ_ID}
+          sessionToken={sessionToken}
+          onQuizUnlocked={() => loadQuestions(sessionToken, participantId)}
+        />
       )}
 
       {view === 'quiz' && currentQuestion && (
@@ -211,12 +230,14 @@ export function App() {
             setView('start');
             setAnswers({});
             setDisplayName('');
-            setSubmissionResult(null);
           }}
         />
       )}
 
-      {/* Grid Jump Modal */}
+      {view === 'admin' && (
+        <AdminDashboard quizId={QUIZ_ID} onExitAdmin={() => setView('start')} />
+      )}
+
       {showGridModal && (
         <QuestionGridModal
           questions={questions}
@@ -228,7 +249,6 @@ export function App() {
         />
       )}
 
-      {/* Submission Confirmation Modal */}
       {showSubmitModal && (
         <SubmissionModal
           totalQuestions={questions.length}

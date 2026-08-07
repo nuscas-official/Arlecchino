@@ -6,8 +6,9 @@ export function seedArlecchinoQuiz() {
   const quiz: Quiz = {
     id: quizId,
     title: 'Arlecchino: King of Riddles Trial',
-    duration_ms: 2400000, // 40 minutes
+    duration_ms: 600000,  // 10 minutes
     grace_ms: 60000,      // 60 seconds grace period
+    status: 'locked',     // Default to locked until host unlocks
     opens_at: new Date().toISOString(),
   };
 

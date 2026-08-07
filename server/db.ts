@@ -6,6 +6,7 @@ export interface Quiz {
   title: string;
   duration_ms: number;
   grace_ms: number;
+  status: 'locked' | 'active' | 'finished';
   opens_at?: string | null;
   closes_at?: string | null;
 }
@@ -17,7 +18,7 @@ export interface Question {
   prompt: string;
   image_url?: string | null;
   options: Array<{ key: string; label: string }>;
-  correct_key: string; // Internal only! Never send to client!
+  correct_key: string; // Internal only!
   points: number;
 }
 
@@ -63,13 +64,14 @@ export interface LeaderboardEntry {
 const db = new Database('arlecchino.db');
 db.pragma('journal_mode = WAL');
 
-// Initialize Tables
+// Initialize / Migration
 db.exec(`
   CREATE TABLE IF NOT EXISTS quiz (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     duration_ms INTEGER NOT NULL,
     grace_ms INTEGER NOT NULL DEFAULT 60000,
+    status TEXT NOT NULL DEFAULT 'locked',
     opens_at TEXT,
     closes_at TEXT
   );
@@ -80,7 +82,7 @@ db.exec(`
     position INTEGER NOT NULL,
     prompt TEXT NOT NULL,
     image_url TEXT,
-    options TEXT NOT NULL, -- stored as JSON string in SQLite
+    options TEXT NOT NULL,
     correct_key TEXT NOT NULL,
     points INTEGER NOT NULL DEFAULT 1,
     UNIQUE (quiz_id, position)
@@ -97,7 +99,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS submission (
     participant_id TEXT PRIMARY KEY REFERENCES participant(id),
-    answers TEXT NOT NULL, -- JSON string
+    answers TEXT NOT NULL,
     score INTEGER NOT NULL,
     correct_count INTEGER NOT NULL,
     answered_count INTEGER NOT NULL,
@@ -111,23 +113,72 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_participant_display_quiz ON participant (display_name, quiz_id);
 `);
 
+// Migration for existing databases without status column
+try {
+  db.exec("ALTER TABLE quiz ADD COLUMN status TEXT NOT NULL DEFAULT 'locked'");
+} catch (e) {
+  // Column already exists, ignore
+}
+
+/**
+ * Deterministic pseudo-random number generator for seeding randomized questions per participant.
+ */
+function seededRandom(seed: number) {
+  const x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+}
+
+function stringToSeed(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 export const dbService = {
   getQuiz(quizId: string): Quiz | undefined {
-    return db.prepare('SELECT * FROM quiz WHERE id = ?').get(quizId) as Quiz | undefined;
+    const row = db.prepare('SELECT * FROM quiz WHERE id = ?').get(quizId) as any;
+    if (!row) return undefined;
+    return {
+      ...row,
+      status: row.status || 'locked',
+    };
   },
 
   upsertQuiz(quiz: Quiz) {
     const stmt = db.prepare(`
-      INSERT INTO quiz (id, title, duration_ms, grace_ms, opens_at, closes_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO quiz (id, title, duration_ms, grace_ms, status, opens_at, closes_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         duration_ms = excluded.duration_ms,
         grace_ms = excluded.grace_ms,
+        status = excluded.status,
         opens_at = excluded.opens_at,
         closes_at = excluded.closes_at
     `);
-    stmt.run(quiz.id, quiz.title, quiz.duration_ms, quiz.grace_ms, quiz.opens_at || null, quiz.closes_at || null);
+    stmt.run(
+      quiz.id,
+      quiz.title,
+      quiz.duration_ms,
+      quiz.grace_ms,
+      quiz.status || 'locked',
+      quiz.opens_at || null,
+      quiz.closes_at || null
+    );
+  },
+
+  setQuizStatus(quizId: string, status: 'locked' | 'active' | 'finished') {
+    const nowIso = new Date().toISOString();
+    if (status === 'active') {
+      db.prepare('UPDATE quiz SET status = ?, opens_at = ? WHERE id = ?').run(status, nowIso, quizId);
+    } else if (status === 'finished') {
+      db.prepare('UPDATE quiz SET status = ?, closes_at = ? WHERE id = ?').run(status, nowIso, quizId);
+    } else {
+      db.prepare('UPDATE quiz SET status = ? WHERE id = ?').run(status, quizId);
+    }
   },
 
   upsertQuestion(q: Question) {
@@ -155,14 +206,15 @@ export const dbService = {
   },
 
   /**
-   * CRITICAL: Explicitly select columns and exclude `correct_key` from client view.
+   * Deterministically shuffles public questions for a specific participant seed.
+   * Ensures every participant gets a unique randomized order that stays consistent across reloads.
    */
-  getPublicQuestions(quizId: string): QuestionPublic[] {
+  getPublicQuestionsShuffled(quizId: string, participantId: string): QuestionPublic[] {
     const rows = db
-      .prepare('SELECT id, quiz_id as quizId, position, prompt, image_url as imageUrl, options, points FROM question WHERE quiz_id = ? ORDER BY position ASC')
+      .prepare('SELECT id, quiz_id as quizId, position, prompt, image_url as imageUrl, options, points FROM question WHERE quiz_id = ?')
       .all(quizId) as any[];
 
-    return rows.map((r) => ({
+    const publicQuestions: QuestionPublic[] = rows.map((r) => ({
       id: r.id,
       quizId: r.quizId,
       position: r.position,
@@ -171,11 +223,22 @@ export const dbService = {
       options: typeof r.options === 'string' ? JSON.parse(r.options) : r.options,
       points: r.points,
     }));
+
+    // Fisher-Yates shuffle with participant seed
+    let seed = stringToSeed(participantId);
+    const shuffled = [...publicQuestions];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(seededRandom(seed++) * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Re-assign display position index 1..N
+    return shuffled.map((q, idx) => ({
+      ...q,
+      position: idx + 1,
+    }));
   },
 
-  /**
-   * Internal question lookup with correct_key for server-side grading only.
-   */
   getInternalQuestions(quizId: string): Question[] {
     const rows = db.prepare('SELECT * FROM question WHERE quiz_id = ?').all(quizId) as any[];
     return rows.map((r) => ({
@@ -185,7 +248,6 @@ export const dbService = {
   },
 
   getOrCreateParticipant(quizId: string, displayName: string): Participant {
-    // Check if participant already exists without submission
     const existing = db
       .prepare(`
         SELECT p.* FROM participant p
@@ -235,9 +297,6 @@ export const dbService = {
     };
   },
 
-  /**
-   * Primary-key idempotency single-row write for submission.
-   */
   createSubmission(sub: Omit<Submission, 'submitted_at'>): { submission: Submission; alreadySubmitted: boolean } {
     const existing = this.getSubmission(sub.participant_id);
     if (existing) {
@@ -286,6 +345,34 @@ export const dbService = {
       rank: index + 1,
       submittedAt: r.submittedAt,
     }));
+  },
+
+  getAdminStats(quizId: string) {
+    const quiz = this.getQuiz(quizId);
+    const participantCount = (
+      db.prepare('SELECT COUNT(*) as cnt FROM participant WHERE quiz_id = ?').get(quizId) as any
+    ).cnt;
+    const submissionCount = (
+      db.prepare(
+        'SELECT COUNT(*) as cnt FROM submission s JOIN participant p ON s.participant_id = p.id WHERE p.quiz_id = ?'
+      ).get(quizId) as any
+    ).cnt;
+
+    return {
+      status: quiz?.status || 'locked',
+      title: quiz?.title,
+      participantCount,
+      submissionCount,
+      opensAt: quiz?.opens_at,
+      closesAt: quiz?.closes_at,
+      durationMs: quiz?.duration_ms,
+    };
+  },
+
+  resetQuizData(quizId: string) {
+    db.exec('DELETE FROM submission');
+    db.exec('DELETE FROM participant');
+    db.prepare("UPDATE quiz SET status = 'locked', opens_at = NULL, closes_at = NULL WHERE id = ?").run(quizId);
   },
 
   exportSubmissionsCSV(quizId: string): string {

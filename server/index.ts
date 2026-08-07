@@ -10,18 +10,15 @@ seedArlecchinoQuiz();
 
 const app = new Hono();
 
-// CORS setup locked to origin or local dev
 app.use('*', cors({
-  origin: '*', // can be restricted to Cloudflare Pages domain in prod
+  origin: '*',
   allowMethods: ['GET', 'POST', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Admin-Secret'],
 }));
 
-// Simple in-memory leaderboard cache
 let leaderboardCache: { quizId: string; timestamp: number; data: any[] } | null = null;
-const CACHE_TTL_MS = 5000; // 5 seconds
+const CACHE_TTL_MS = 3000;
 
-// Helper to authenticate session token
 function getAuthenticatedParticipant(c: any) {
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -29,6 +26,12 @@ function getAuthenticatedParticipant(c: any) {
   }
   const token = authHeader.substring(7);
   return dbService.getParticipantByToken(token);
+}
+
+function verifyAdminSecret(c: any) {
+  const secret = c.req.header('X-Admin-Secret') || c.req.query('secret');
+  const expected = process.env.ADMIN_SECRET || 'arlecchino-secret-key';
+  return secret === expected;
 }
 
 /**
@@ -50,7 +53,7 @@ app.post('/api/session/start', async (c) => {
     }
 
     const participant = dbService.getOrCreateParticipant(quiz.id, parsed.displayName);
-    const startedAtTime = new Date(participant.started_at).getTime();
+    const startedAtTime = new Date(quiz.opens_at || participant.started_at).getTime();
     const deadline = new Date(startedAtTime + quiz.duration_ms).toISOString();
 
     return c.json({
@@ -59,6 +62,7 @@ app.post('/api/session/start', async (c) => {
       startedAt: participant.started_at,
       deadline,
       durationMs: quiz.duration_ms,
+      quizStatus: quiz.status,
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -71,6 +75,7 @@ app.post('/api/session/start', async (c) => {
 
 /**
  * 2. GET /api/quiz/:quizId
+ * Returns randomized questions per participant and enforces locked quiz status.
  */
 app.get('/api/quiz/:quizId', (c) => {
   const participant = getAuthenticatedParticipant(c);
@@ -84,15 +89,29 @@ app.get('/api/quiz/:quizId', (c) => {
     return c.json({ error: 'Quiz not found' }, 404);
   }
 
-  // Explicit column selection - answer keys NEVER sent to client
-  const questions = dbService.getPublicQuestions(quizId);
+  if (quiz.status === 'locked') {
+    return c.json({
+      quizStatus: 'locked',
+      message: 'The King of Riddles trial is currently locked by the host.',
+    });
+  }
+
+  // Calculate deadline from global quiz opens_at or participant start
+  const startedAtTime = new Date(quiz.opens_at || participant.started_at).getTime();
+  const deadlineIso = new Date(startedAtTime + quiz.duration_ms).toISOString();
+
+  // Deterministically randomized question list per participant
+  const questions = dbService.getPublicQuestionsShuffled(quizId, participant.id);
 
   return c.json({
+    quizStatus: quiz.status,
     quiz: {
       id: quiz.id,
       title: quiz.title,
       durationMs: quiz.duration_ms,
       graceMs: quiz.grace_ms,
+      opensAt: quiz.opens_at,
+      deadlineIso,
     },
     questions,
   });
@@ -102,7 +121,7 @@ app.get('/api/quiz/:quizId', (c) => {
  * 3. POST /api/submit
  */
 const submitSchema = z.object({
-  answers: z.record(z.string()), // { [questionId]: optionKey }
+  answers: z.record(z.string()),
   autoSubmitted: z.boolean().optional().default(false),
 });
 
@@ -122,8 +141,8 @@ app.post('/api/submit', async (c) => {
     const parsed = submitSchema.parse(body);
 
     const nowMs = Date.now();
-    const startedAtMs = new Date(participant.started_at).getTime();
-    let elapsedMs = nowMs - startedAtMs;
+    const quizStartTimeMs = new Date(quiz.opens_at || participant.started_at).getTime();
+    let elapsedMs = nowMs - quizStartTimeMs;
 
     const maxAllowedMs = quiz.duration_ms + quiz.grace_ms;
     if (elapsedMs > maxAllowedMs) {
@@ -133,10 +152,9 @@ app.post('/api/submit', async (c) => {
     let wasLate = false;
     if (elapsedMs > quiz.duration_ms) {
       wasLate = true;
-      elapsedMs = quiz.duration_ms; // clamp elapsed time
+      elapsedMs = quiz.duration_ms;
     }
 
-    // Load full internal questions with correct_key for server-side grading ONLY
     const internalQuestions = dbService.getInternalQuestions(participant.quiz_id);
     let score = 0;
     let correctCount = 0;
@@ -153,19 +171,17 @@ app.post('/api/submit', async (c) => {
       }
     }
 
-    // Attempt single-row idempotent write
     const { submission, alreadySubmitted } = dbService.createSubmission({
       participant_id: participant.id,
       answers: parsed.answers,
       score,
       correct_count: correctCount,
       answered_count: answeredCount,
-      elapsed_ms: elapsedMs,
+      elapsed_ms: Math.max(0, elapsedMs),
       auto_submitted: parsed.autoSubmitted,
       was_late: wasLate,
     });
 
-    // Invalidate leaderboard cache
     leaderboardCache = null;
 
     return c.json({
@@ -203,23 +219,61 @@ app.get('/api/leaderboard/:quizId', (c) => {
 });
 
 /**
- * 5. POST /api/progress (Autosave endpoint)
+ * 5. ADMIN CONTROL ENDPOINTS
  */
-app.post('/api/progress', async (c) => {
-  const participant = getAuthenticatedParticipant(c);
-  if (!participant) {
-    return c.json({ error: 'Unauthorized' }, 401);
+
+// Update Quiz Status (Unlock / Lock / Finish)
+app.post('/api/admin/quiz/status', async (c) => {
+  if (!verifyAdminSecret(c)) {
+    return c.json({ error: 'Unauthorized Admin' }, 403);
   }
-  // Progress logged for diagnostics
-  return c.json({ status: 'ok', savedAt: new Date().toISOString() });
+
+  const body = await c.req.json();
+  const { quizId, status } = body;
+
+  if (!['locked', 'active', 'finished'].includes(status)) {
+    return c.json({ error: 'Invalid status' }, 400);
+  }
+
+  dbService.setQuizStatus(quizId, status);
+  leaderboardCache = null;
+
+  return c.json({ status: 'ok', quizStatus: status });
 });
 
-/**
- * 6. GET /api/admin/export/:quizId
- */
+// Reset Quiz Submissions and Participants (Clean Database)
+app.post('/api/admin/quiz/reset', async (c) => {
+  if (!verifyAdminSecret(c)) {
+    return c.json({ error: 'Unauthorized Admin' }, 403);
+  }
+
+  const body = await c.req.json();
+  const { quizId } = body;
+
+  dbService.resetQuizData(quizId);
+  leaderboardCache = null;
+
+  return c.json({ status: 'ok', message: 'Quiz submissions and participant sessions reset to 0.' });
+});
+
+// Get Admin Dashboard Stats
+app.get('/api/admin/stats/:quizId', (c) => {
+  if (!verifyAdminSecret(c)) {
+    return c.json({ error: 'Unauthorized Admin' }, 403);
+  }
+
+  const quizId = c.req.param('quizId');
+  const stats = dbService.getAdminStats(quizId);
+  const leaderboard = dbService.getLeaderboard(quizId, 10);
+
+  return c.json({
+    stats,
+    topParticipants: leaderboard,
+  });
+});
+
 app.get('/api/admin/export/:quizId', (c) => {
-  const adminSecret = c.req.header('X-Admin-Secret') || c.req.query('secret');
-  if (adminSecret !== (process.env.ADMIN_SECRET || 'arlecchino-secret-key')) {
+  if (!verifyAdminSecret(c)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 

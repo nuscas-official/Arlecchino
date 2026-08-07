@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "server": "node --import tsx/esm server/index.ts",
-    "seed": "node --import tsx/esm server/seed.ts"
+    "seed": "node --import tsx/esm server/seed.ts",
+    "reset-db": "node --import tsx/esm server/reset.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
