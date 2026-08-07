@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WaitingRoom } from './components/WaitingRoom';
 import { RiddleHeader } from './components/RiddleHeader';
@@ -127,7 +127,7 @@ export function App() {
       setSubmitError(null);
 
       if (autoSubmitted) {
-        const jitterMs = Math.floor(Math.random() * 10000);
+        const jitterMs = Math.floor(Math.random() * 1500);
         await new Promise((r) => setTimeout(r, jitterMs));
       }
 
@@ -154,6 +154,32 @@ export function App() {
   const handleDeadlineReached = useCallback(() => {
     executeSubmission(true);
   }, [executeSubmission]);
+
+  // Periodic polling for quiz status while actively taking quiz (detect host force-end)
+  useEffect(() => {
+    if (view !== 'quiz' || !sessionToken) return;
+
+    let interval: NodeJS.Timeout;
+    const checkQuizStatusOnServer = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/quiz/${QUIZ_ID}`, {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.quizStatus === 'finished') {
+            console.log('[Quiz] Host has force-ended the quiz session. Auto-submitting answers.');
+            executeSubmission(true);
+          }
+        }
+      } catch (err) {
+        console.error('Quiz status polling error:', err);
+      }
+    };
+
+    interval = setInterval(checkQuizStatusOnServer, 3000);
+    return () => clearInterval(interval);
+  }, [view, sessionToken, executeSubmission]);
 
   const currentQuestion = questions[currentIndex];
 

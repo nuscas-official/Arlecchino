@@ -261,6 +261,7 @@ export const dbService = {
         await sql`UPDATE quiz SET status = ${status}, opens_at = ${nowIso} WHERE id = ${quizId}`;
       } else if (status === 'finished') {
         await sql`UPDATE quiz SET status = ${status}, closes_at = ${nowIso} WHERE id = ${quizId}`;
+        await this.forceGradeAllUnsubmitted(quizId, envDbUrl);
       } else {
         await sql`UPDATE quiz SET status = ${status} WHERE id = ${quizId}`;
       }
@@ -273,6 +274,7 @@ export const dbService = {
         db.prepare('UPDATE quiz SET status = ?, opens_at = ? WHERE id = ?').run(status, nowIso, quizId);
       } else if (status === 'finished') {
         db.prepare('UPDATE quiz SET status = ?, closes_at = ? WHERE id = ?').run(status, nowIso, quizId);
+        await this.forceGradeAllUnsubmitted(quizId, envDbUrl);
       } else {
         db.prepare('UPDATE quiz SET status = ? WHERE id = ?').run(status, quizId);
       }
@@ -280,6 +282,54 @@ export const dbService = {
     }
 
     throw new Error('[dbService.setQuizStatus] Database connection unavailable.');
+  },
+
+  async forceGradeAllUnsubmitted(quizId: string, envDbUrl?: string): Promise<number> {
+    const quiz = await this.getQuiz(quizId, envDbUrl);
+    const durationMs = quiz ? quiz.duration_ms : 420000;
+    const nowIso = new Date().toISOString();
+    const sql = getNeonSql(envDbUrl);
+    if (sql) {
+      const unsubmittedRows: any = await sql`
+        SELECT p.id FROM participant p
+        LEFT JOIN submission s ON p.id = s.participant_id
+        WHERE p.quiz_id = ${quizId} AND s.participant_id IS NULL
+      `;
+      let count = 0;
+      for (const row of unsubmittedRows) {
+        await sql`
+          INSERT INTO submission (participant_id, answers, score, correct_count, answered_count, elapsed_ms, auto_submitted, was_late, submitted_at)
+          VALUES (${row.id}, '{}'::jsonb, 0, 0, 0, ${durationMs}, true, true, ${nowIso})
+          ON CONFLICT (participant_id) DO NOTHING
+        `;
+        count++;
+      }
+      return count;
+    }
+
+    const db = getLocalSqlite();
+    if (db) {
+      const unsubmitted = db.prepare(`
+        SELECT p.id FROM participant p
+        LEFT JOIN submission s ON p.id = s.participant_id
+        WHERE p.quiz_id = ? AND s.participant_id IS NULL
+      `).all(quizId) as any[];
+
+      const insertStmt = db.prepare(`
+        INSERT INTO submission (participant_id, answers, score, correct_count, answered_count, elapsed_ms, auto_submitted, was_late, submitted_at)
+        VALUES (?, '{}', 0, 0, 0, ?, 1, 1, ?)
+        ON CONFLICT(participant_id) DO NOTHING
+      `);
+
+      let count = 0;
+      for (const row of unsubmitted) {
+        insertStmt.run(row.id, durationMs, nowIso);
+        count++;
+      }
+      return count;
+    }
+
+    return 0;
   },
 
   async upsertQuestion(q: Question, envDbUrl?: string): Promise<void> {
@@ -460,7 +510,9 @@ export const dbService = {
 
   async createSubmission(sub: Omit<Submission, 'submitted_at'>, envDbUrl?: string): Promise<{ submission: Submission; alreadySubmitted: boolean }> {
     const existing = await this.getSubmission(sub.participant_id, envDbUrl);
-    if (existing) {
+    const isAutoEmpty = existing && existing.answered_count === 0 && existing.score === 0;
+
+    if (existing && !isAutoEmpty) {
       return { submission: existing, alreadySubmitted: true };
     }
 
@@ -472,10 +524,18 @@ export const dbService = {
       await sql`
         INSERT INTO submission (participant_id, answers, score, correct_count, answered_count, elapsed_ms, auto_submitted, was_late, submitted_at)
         VALUES (${sub.participant_id}, ${answersJson}::jsonb, ${sub.score}, ${sub.correct_count}, ${sub.answered_count}, ${sub.elapsed_ms}, ${sub.auto_submitted}, ${sub.was_late}, ${nowIso})
-        ON CONFLICT (participant_id) DO NOTHING
+        ON CONFLICT (participant_id) DO UPDATE SET
+          answers = EXCLUDED.answers,
+          score = EXCLUDED.score,
+          correct_count = EXCLUDED.correct_count,
+          answered_count = EXCLUDED.answered_count,
+          elapsed_ms = EXCLUDED.elapsed_ms,
+          auto_submitted = EXCLUDED.auto_submitted,
+          was_late = EXCLUDED.was_late,
+          submitted_at = EXCLUDED.submitted_at
       `;
       const res = await this.getSubmission(sub.participant_id, envDbUrl);
-      return { submission: res!, alreadySubmitted: false };
+      return { submission: res!, alreadySubmitted: Boolean(existing && !isAutoEmpty) };
     }
 
     const db = getLocalSqlite();
@@ -483,11 +543,19 @@ export const dbService = {
       const stmt = db.prepare(`
         INSERT INTO submission (participant_id, answers, score, correct_count, answered_count, elapsed_ms, auto_submitted, was_late, submitted_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(participant_id) DO NOTHING
+        ON CONFLICT(participant_id) DO UPDATE SET
+          answers = excluded.answers,
+          score = excluded.score,
+          correct_count = excluded.correct_count,
+          answered_count = excluded.answered_count,
+          elapsed_ms = excluded.elapsed_ms,
+          auto_submitted = excluded.auto_submitted,
+          was_late = excluded.was_late,
+          submitted_at = excluded.submitted_at
       `);
       stmt.run(sub.participant_id, answersJson, sub.score, sub.correct_count, sub.answered_count, sub.elapsed_ms, sub.auto_submitted ? 1 : 0, sub.was_late ? 1 : 0, nowIso);
       const res = await this.getSubmission(sub.participant_id, envDbUrl);
-      return { submission: res!, alreadySubmitted: false };
+      return { submission: res!, alreadySubmitted: Boolean(existing && !isAutoEmpty) };
     }
 
     throw new Error('Database connection unavailable.');
