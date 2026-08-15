@@ -48,9 +48,11 @@ function shuffleInPlace<T>(items: T[], seedRef: { value: number }) {
  * Returns a new array in this participant's order, with `position` renumbered
  * 1..n so the "Riddle 07 / 50" label and the grid stay sequential.
  *
- * Option order is randomized too. It previously was not, so neighbours saw
- * identical A/B/C/D — the cheaper half of shoulder-surfing. Answers are
- * submitted by option `key`, never by index, so this is presentation only.
+ * Option order is intentionally NOT shuffled — every participant sees
+ * A/B/C/D in the order authored in riddles.ts. (This trades away some
+ * shoulder-surfing resistance: neighbours now see identical option order.
+ * Answers are still submitted by option `key`, never by index, so grading is
+ * unaffected either way.)
  */
 export function shuffleQuestionsForParticipant<T extends Shufflable>(
   questions: T[],
@@ -58,12 +60,7 @@ export function shuffleQuestionsForParticipant<T extends Shufflable>(
 ): T[] {
   const seedRef = { value: stringToSeed(participantId) };
 
-  const shuffled = questions.map((q) => {
-    const options = [...q.options];
-    shuffleInPlace(options, seedRef);
-    return { ...q, options };
-  });
-
+  const shuffled = [...questions];
   shuffleInPlace(shuffled, seedRef);
 
   return shuffled.map((q, idx) => ({ ...q, position: idx + 1 }));

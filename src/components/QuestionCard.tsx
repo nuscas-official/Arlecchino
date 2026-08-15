@@ -65,10 +65,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         <RichText text={question.prompt} />
       </h2>
 
-      {/* Consistent Media Slot (Reserved height for layout stability across mixed text/image questions) */}
-      <div className={`media-container${question.imageUrl && !imgError ? ' has-image' : ''}`}>
-        {question.imageUrl ? (
-          imgError ? (
+      {/* No media slot at all for text-only questions — a reserved empty box
+          here was pushing mobile layouts too tall. Height now varies between
+          image and text-only questions instead of staying constant. */}
+      {question.imageUrl && (
+        <div className={`media-container${!imgError ? ' has-image' : ''}`}>
+          {imgError ? (
             <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--ink-muted)' }}>
               <ImageOff size={32} style={{ marginBottom: '0.5rem', opacity: 0.7 }} />
               <p style={{ fontSize: '0.85rem' }}>Couldn't load riddle image.</p>
@@ -93,16 +95,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               onError={() => setImgError(true)}
               loading="eager"
             />
-          )
-        ) : (
-          /* Text-only layout anchor placeholder to maintain option position stability */
-          <div style={{ textAlign: 'center', opacity: 0.45 }}>
-            <span className="eyebrow bracketed" style={{ color: 'var(--gold)' }}>
-              Arlecchino Sanctum
-            </span>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Options Fieldset */}
       <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>

@@ -395,6 +395,80 @@ export const dbService = {
     throw new Error('[dbService.deleteQuestions] Database connection unavailable.');
   },
 
+  /**
+   * Bulk variant of upsertQuestion. The Neon HTTP driver spends one subrequest
+   * per `await sql\`...\`` call, and Workers caps a single invocation at 50
+   * subrequests (free tier). Looping upsertQuestion per row blew through that
+   * the moment the real question set (51 rows) replaced the 10-row test set —
+   * schema setup + quiz upsert + delete already spend 8, leaving no room for
+   * more than ~42 individual inserts. A single unnest() insert writes any
+   * number of rows in one round trip, so question count no longer matters.
+   */
+  async upsertQuestions(questions: Question[], envDbUrl?: string): Promise<void> {
+    if (questions.length === 0) return;
+
+    const sql = getNeonSql(envDbUrl);
+    if (sql) {
+      const ids = questions.map((q) => q.id);
+      const quizIds = questions.map((q) => q.quiz_id);
+      const positions = questions.map((q) => q.position);
+      const prompts = questions.map((q) => q.prompt);
+      const imageUrls = questions.map((q) => q.image_url || null);
+      const optionsJsons = questions.map((q) => (typeof q.options === 'string' ? q.options : JSON.stringify(q.options)));
+      const correctKeys = questions.map((q) => q.correct_key);
+      const points = questions.map((q) => q.points);
+
+      await sql`
+        INSERT INTO question (id, quiz_id, position, prompt, image_url, options, correct_key, points)
+        SELECT * FROM unnest(
+          ${ids}::text[],
+          ${quizIds}::text[],
+          ${positions}::int[],
+          ${prompts}::text[],
+          ${imageUrls}::text[],
+          ${optionsJsons}::jsonb[],
+          ${correctKeys}::text[],
+          ${points}::int[]
+        )
+        ON CONFLICT (quiz_id, position) DO UPDATE SET
+          id = EXCLUDED.id,
+          prompt = EXCLUDED.prompt,
+          image_url = EXCLUDED.image_url,
+          options = EXCLUDED.options,
+          correct_key = EXCLUDED.correct_key,
+          points = EXCLUDED.points
+      `;
+      return;
+    }
+
+    // Local SQLite has no HTTP-subrequest cost — a synchronous transaction
+    // over the same per-row upsert is fast and keeps one code path per row.
+    const db = getLocalSqlite();
+    if (db) {
+      const stmt = db.prepare(`
+        INSERT INTO question (id, quiz_id, position, prompt, image_url, options, correct_key, points)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(quiz_id, position) DO UPDATE SET
+          id = excluded.id,
+          prompt = excluded.prompt,
+          image_url = excluded.image_url,
+          options = excluded.options,
+          correct_key = excluded.correct_key,
+          points = excluded.points
+      `);
+      const insertMany = db.transaction((rows: Question[]) => {
+        for (const q of rows) {
+          const optsJson = typeof q.options === 'string' ? q.options : JSON.stringify(q.options);
+          stmt.run(q.id, q.quiz_id, q.position, q.prompt, q.image_url || null, optsJson, q.correct_key, q.points);
+        }
+      });
+      insertMany(questions);
+      return;
+    }
+
+    throw new Error('[dbService.upsertQuestions] Database connection unavailable.');
+  },
+
   async upsertQuestion(q: Question, envDbUrl?: string): Promise<void> {
     const optsJson = typeof q.options === 'string' ? q.options : JSON.stringify(q.options);
     const sql = getNeonSql(envDbUrl);

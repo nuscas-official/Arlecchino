@@ -28,20 +28,20 @@ export async function seedArlecchinoQuiz(envDbUrl?: string) {
   // previous set alive in the table.
   await dbService.deleteQuestions(quizId, envDbUrl);
 
-  for (let idx = 0; idx < riddles.length; idx++) {
-    const item = riddles[idx];
-    const q: Question = {
-      id: `q-${idx + 1}`,
-      quiz_id: quizId,
-      position: idx + 1,
-      prompt: item.prompt,
-      image_url: item.imageUrl,
-      options: item.options,
-      correct_key: item.correctKey,
-      points: 1,
-    };
-    await dbService.upsertQuestion(q, envDbUrl);
-  }
+  const questions: Question[] = riddles.map((item, idx) => ({
+    id: `q-${idx + 1}`,
+    quiz_id: quizId,
+    position: idx + 1,
+    prompt: item.prompt,
+    image_url: item.imageUrl,
+    options: item.options,
+    correct_key: item.correctKey,
+    points: 1,
+  }));
+
+  // One bulk call instead of one insert per question — see upsertQuestions
+  // for why (Workers' per-invocation subrequest cap).
+  await dbService.upsertQuestions(questions, envDbUrl);
 
   console.log(`[Seed] Seeded Quiz '${quizId}' with ${riddles.length} questions successfully.`);
 }
