@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ImageOff, RefreshCw, ArrowLeft, ArrowRight } from 'lucide-react';
+import { RichText } from './RichText';
 
 export interface QuestionPublic {
   id: string;
@@ -61,7 +62,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           minHeight: '3.5rem',
         }}
       >
-        {question.prompt}
+        <RichText text={question.prompt} />
       </h2>
 
       {/* Consistent Media Slot (Reserved height for layout stability across mixed text/image questions) */}
@@ -118,7 +119,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 aria-pressed={isSelected}
               >
                 <span className="option-key-badge">{opt.key}</span>
-                <span>{opt.label}</span>
+                <span><RichText text={opt.label} /></span>
               </button>
             );
           })}

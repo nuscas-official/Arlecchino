@@ -370,6 +370,31 @@ export const dbService = {
     return 0;
   },
 
+  /**
+   * Clears a quiz's question set so a seed run is a true replace rather than a
+   * merge. upsertQuestion keys on (quiz_id, position), so without this a seed
+   * of N questions over an older set of M > N leaves positions N+1..M live and
+   * still served — silently, with no error to notice.
+   *
+   * Safe to delete: nothing carries a foreign key to question. Submissions
+   * reference question ids only as JSON keys inside `answers`.
+   */
+  async deleteQuestions(quizId: string, envDbUrl?: string): Promise<void> {
+    const sql = getNeonSql(envDbUrl);
+    if (sql) {
+      await sql`DELETE FROM question WHERE quiz_id = ${quizId}`;
+      return;
+    }
+
+    const db = getLocalSqlite();
+    if (db) {
+      db.prepare('DELETE FROM question WHERE quiz_id = ?').run(quizId);
+      return;
+    }
+
+    throw new Error('[dbService.deleteQuestions] Database connection unavailable.');
+  },
+
   async upsertQuestion(q: Question, envDbUrl?: string): Promise<void> {
     const optsJson = typeof q.options === 'string' ? q.options : JSON.stringify(q.options);
     const sql = getNeonSql(envDbUrl);
