@@ -13,15 +13,16 @@
 
 const BANNED_WORDS = [
   // Profanity
-  'fuck', 'shit', 'bitch', 'bastard', 'asshole', 'ass hole', 'dick', 'cock',
-  'pussy', 'cunt', 'twat', 'whore', 'slut', 'douche', 'wanker', 'bollock',
+  'fuck', 'fucker', 'fkr', 'fker', 'motherfucker', 'shit', 'bitch', 'bastard', 'asshole', 'ass hole', 'dick', 'cock',
+  'pussy', 'cunt', 'twat', 'whore', 'slut', 'douche', 'wanker', 'bollock', 'piss', 'shit',
   // Sexual / body parts
-  'penis', 'vagina', 'boob', 'tit', 'porn', 'sex', 'anal', 'cum', 'dildo',
+  'penis', 'vagina', 'boob', 'tit', 'porn', 'sex', 'anal', 'cum', 'dildo', 'sexual', 'intercourse',
   // Slurs
-  'nigger', 'nigga', 'fag', 'faggot', 'retard', 'spic', 'chink', 'gook',
+  'nigger', 'nigga', 'nig', 'nigg', 'nigge', 'nigr', 'niggr', 'niga', 'nggr', 'ngr', 'nga',
+  'fag', 'faggot', 'retard', 'spic', 'chink', 'gook',
   'tranny', 'dyke',
   // Hate figures / extremism
-  'hitler', 'nazi', 'isis', 'kkk',
+  'hitler', 'nazi', 'isis', 'kkk', 'diddy', 'epstein', 'pedo', 'pedophile', 'rape', 'rapist', 'assault'
 ];
 
 function normalize(input: string): string {
