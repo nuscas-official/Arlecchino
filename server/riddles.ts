@@ -198,6 +198,7 @@ export const riddles: Riddle[] = [
   },
   {
     prompt: 'Which Hololive member was the first to reach 1 million YouTube subscribers?',
+    options: [
       { key: 'a', label: 'Houshou Marine' },
       { key: 'b', label: 'Kobo Kanaeru' },
       { key: 'c', label: 'Gawr Gura' },
@@ -360,7 +361,7 @@ export const riddles: Riddle[] = [
     prompt: 'What is the name of the city-state where Arknights begins?',
     options: [
       { key: 'a', label: 'Lungmen' },
-      { key: 'b', label: 'Chernobog },
+      { key: 'b', label: 'Chernobog' },
       { key: 'c', label: 'Laterano' },
       { key: 'd', label: 'Kazimierz' },
     ],
