@@ -59,7 +59,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             <p style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--ink-mid)', margin: '0.25rem 0 0.5rem' }}>
               Please refrain from using offensive language in your name
             </p>
-            <div className="field-wrap"></div>
+            <div className="field-wrap">
 
               <KeyRound size={18} className="field-icon" />
               <input
