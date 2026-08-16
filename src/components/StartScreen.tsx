@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { KeyRound, ArrowRight } from 'lucide-react';
+import { isProfane } from '../utils/profanityFilter';
 
 interface StartScreenProps {
   onStartQuiz: (displayName: string) => void;
@@ -13,12 +14,20 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   error,
 }) => {
   const [displayName, setDisplayName] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (displayName.trim()) {
-      onStartQuiz(displayName.trim());
+    const trimmed = displayName.trim();
+    if (!trimmed) return;
+
+    if (isProfane(trimmed)) {
+      setNameError('That name isn\'t allowed. Please pick something else.');
+      return;
     }
+
+    setNameError(null);
+    onStartQuiz(trimmed);
   };
 
   return (
@@ -56,14 +65,17 @@ export const StartScreen: React.FC<StartScreenProps> = ({
                 maxLength={40}
                 placeholder="e.g. Anikun"
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  if (nameError) setNameError(null);
+                }}
               />
             </div>
           </div>
 
-          {error && (
+          {(nameError || error) && (
             <div className="callout callout-error" role="alert">
-              <span>{error}</span>
+              <span>{nameError || error}</span>
             </div>
           )}
 

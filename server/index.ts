@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { dbService, isPlaceholderSubmission, participantCode } from './db.js';
 import { seedArlecchinoQuiz } from './seed.js';
+import { isProfane } from './profanityFilter.js';
 
 const app = new Hono<{ Bindings: { DATABASE_URL?: string; ADMIN_SECRET?: string } }>();
 
@@ -116,6 +117,10 @@ app.post('/api/session/start', async (c) => {
   try {
     const body = await c.req.json();
     const parsed = startSchema.parse(body);
+
+    if (isProfane(parsed.displayName)) {              
+      return c.json({ error: 'Please choose a different display name.' }, 400);
+    }
 
     let quiz = await dbService.getQuiz(parsed.quizId, c.env?.DATABASE_URL);
     if (!quiz) {
