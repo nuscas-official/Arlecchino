@@ -52,10 +52,15 @@ export const StartScreen: React.FC<StartScreenProps> = ({
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
+
             <label htmlFor="displayNameInput" className="field-label">
               Your Name
             </label>
-            <div className="field-wrap">
+            <p style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--ink-mid)', margin: '0.25rem 0 0.5rem' }}>
+              Please refrain from using offensive language in your name
+            </p>
+            <div className="field-wrap"></div>
+
               <KeyRound size={18} className="field-icon" />
               <input
                 id="displayNameInput"
