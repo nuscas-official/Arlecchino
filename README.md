@@ -1,5 +1,7 @@
 # Arlecchino: King of Riddles — Concurrent Quiz Platform
 
+<img width="627" height="469" alt="arlecchino" src="https://github.com/user-attachments/assets/e83bbd8e-3071-4254-8274-4acc46397d41" />
+
 > A high-throughput, fault-tolerant live quiz platform built to handle ~200 concurrent participants under strict time limits with zero answer key leakage and server-side grading. Named after Arlecchino, the King of Riddles from *Lies of P*.
 
 ---
